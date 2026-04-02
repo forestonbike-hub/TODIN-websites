@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>Todin's Drawing App</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+    <h1>Todin's Drawing App</h1>
+
+    <div class="toolbar">
+      <button class="color-btn active" data-color="#ff6b6b" style="background: #ff6b6b;"></button>
+      <button class="color-btn" data-color="#ffd93d" style="background: #ffd93d;"></button>
+      <button class="color-btn" data-color="#6bcb77" style="background: #6bcb77;"></button>
+      <button class="color-btn" data-color="#4d96ff" style="background: #4d96ff;"></button>
+      <button class="color-btn" data-color="#9b59b6" style="background: #9b59b6;"></button>
+      <button class="color-btn" data-color="#333333" style="background: #333333;"></button>
+      <button class="color-btn" data-color="#ffffff" style="background: #ffffff; border: 2px solid #ccc;"></button>
+    </div>
+
+    <div class="toolbar">
+      <label>Brush Size:
+        <input type="range" id="brushSize" min="2" max="30" value="8">
+      </label>
+      <button id="clearBtn" class="action-btn">Clear</button>
+    </div>
+
+    <canvas id="canvas"></canvas>
+
+    <p class="hint">Draw with your finger or mouse!</p>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
