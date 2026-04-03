@@ -1,0 +1,182 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+:root {
+  --bg:      #050510;
+  --yellow:  #ffe600;
+  --pink:    #ff2d78;
+  --blue:    #00e5ff;
+  --purple:  #c800ff;
+  --green:   #00ff88;
+  --text:    #ffffff;
+}
+
+html, body {
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Press Start 2P', monospace;
+  overflow-x: hidden;
+}
+
+/* ── SCANLINES OVERLAY ── */
+.scanlines {
+  pointer-events: none;
+  position: fixed; inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 3px,
+    rgba(0,0,0,0.18) 3px,
+    rgba(0,0,0,0.18) 4px
+  );
+  z-index: 100;
+}
+
+/* ── MARQUEE ── */
+.marquee-wrap {
+  width: 100%;
+  background: var(--pink);
+  overflow: hidden;
+  padding: 6px 0;
+  white-space: nowrap;
+}
+.marquee-text {
+  display: inline-block;
+  animation: marquee 18s linear infinite;
+  font-size: 0.55rem;
+  color: #fff;
+  letter-spacing: 0.05em;
+}
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+/* ── HEADER ── */
+header {
+  text-align: center;
+  padding: 28px 16px 10px;
+}
+.title {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  line-height: 1.2;
+}
+.t1 {
+  font-size: clamp(1.1rem, 5vw, 2rem);
+  color: var(--yellow);
+  text-shadow: 0 0 12px var(--yellow), 4px 4px 0 #a89000;
+}
+.t2 {
+  font-size: clamp(1.6rem, 8vw, 3.2rem);
+  color: var(--pink);
+  text-shadow: 0 0 18px var(--pink), 5px 5px 0 #8b0038;
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%,100% { text-shadow: 0 0 18px var(--pink), 5px 5px 0 #8b0038; }
+  50%      { text-shadow: 0 0 40px var(--pink), 5px 5px 0 #8b0038; }
+}
+.subtitle {
+  margin-top: 14px;
+  font-size: 0.6rem;
+  color: var(--blue);
+  letter-spacing: 0.12em;
+  animation: blink 1.4s step-end infinite;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+/* ── GRID ── */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 24px;
+  padding: 28px 20px;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+/* ── GAME CARD ── */
+.game-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-decoration: none;
+  color: var(--text);
+  background: #0d0d2a;
+  border: 3px solid #333;
+  border-radius: 12px;
+  padding: 28px 20px 20px;
+  overflow: hidden;
+  transition: transform 0.15s, border-color 0.15s;
+  cursor: pointer;
+}
+.game-card:active { transform: scale(0.96); }
+.game-card:hover  { border-color: var(--yellow); }
+
+.card-glow {
+  position: absolute;
+  inset: 0;
+  opacity: 0.08;
+  border-radius: 10px;
+  pointer-events: none;
+}
+.glow-blue  { background: radial-gradient(circle at 50% 30%, var(--blue), transparent 70%); }
+.glow-pink  { background: radial-gradient(circle at 50% 30%, var(--pink), transparent 70%); }
+.glow-green { background: radial-gradient(circle at 50% 30%, var(--green), transparent 70%); }
+
+.card-icon {
+  font-size: 4rem;
+  margin-bottom: 16px;
+  filter: drop-shadow(0 0 10px rgba(255,255,255,0.4));
+}
+.card-name {
+  font-size: 0.85rem;
+  color: var(--yellow);
+  text-align: center;
+  margin-bottom: 10px;
+  text-shadow: 0 0 8px var(--yellow);
+}
+.card-desc {
+  font-size: 0.5rem;
+  color: #aaa;
+  text-align: center;
+  line-height: 1.8;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  margin-bottom: 20px;
+}
+.card-play {
+  background: var(--pink);
+  color: #fff;
+  font-size: 0.7rem;
+  padding: 10px 28px;
+  border-radius: 6px;
+  letter-spacing: 0.12em;
+  box-shadow: 0 0 16px var(--pink);
+  transition: box-shadow 0.2s;
+}
+.game-card:hover .card-play {
+  box-shadow: 0 0 30px var(--pink);
+}
+
+/* ── FOOTER ── */
+footer {
+  text-align: center;
+  padding: 16px 16px 32px;
+}
+.coin-text {
+  font-size: 0.5rem;
+  color: var(--yellow);
+  letter-spacing: 0.1em;
+  margin-bottom: 10px;
+}
+.coin-blink {
+  font-size: 1rem;
+  color: var(--yellow);
+  animation: blink 0.8s step-end infinite;
+}
