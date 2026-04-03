@@ -178,5 +178,8 @@ clearBtn.onclick = () => {
   }
 };
 
+// ── BLOCK LONG-PRESS CONTEXT MENU ────────────────────────────────────────────
+document.addEventListener('contextmenu', e => e.preventDefault());
+
 // ── INIT ──────────────────────────────────────────────────────────────────────
 renderSolves();
