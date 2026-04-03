@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Cube Timer</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- NORMAL VIEW -->
+  <div id="app">
+
+    <div id="best-bar">
+      <span id="best-label">Best Time</span>
+      <span id="best-time">--:--.--</span>
+    </div>
+
+    <div id="timer-display">
+      <span id="timer-text">0:00.00</span>
+      <div id="hint">Hold to start</div>
+    </div>
+
+    <div id="solves-section">
+      <div id="solves-header">
+        <span>Solves</span>
+        <button id="clear-btn">Clear All</button>
+      </div>
+      <div id="solves-list"></div>
+    </div>
+
+  </div>
+
+  <!-- HOLDING OVERLAY (green) -->
+  <div id="hold-overlay" class="hidden">
+    <div id="hold-text">Keep holding...</div>
+  </div>
+
+  <!-- RUNNING OVERLAY (fullscreen timer) -->
+  <div id="run-overlay" class="hidden">
+    <div id="run-timer">0:00.00</div>
+    <div id="run-hint">Tap anywhere to stop</div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
