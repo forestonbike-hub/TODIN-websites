@@ -10,14 +10,16 @@ let isRunning     = false;
 let wakeLock      = null;
 
 // ── DOM ───────────────────────────────────────────────────────────────────────
-const timerText   = document.getElementById('timer-text');
-const hint        = document.getElementById('hint');
-const bestTime    = document.getElementById('best-time');
-const solvesList  = document.getElementById('solves-list');
-const holdOverlay = document.getElementById('hold-overlay');
-const runOverlay  = document.getElementById('run-overlay');
-const runTimer    = document.getElementById('run-timer');
-const clearBtn    = document.getElementById('clear-btn');
+const timerText    = document.getElementById('timer-text');
+const hint         = document.getElementById('hint');
+const bestTime     = document.getElementById('best-time');
+const solvesList   = document.getElementById('solves-list');
+const holdOverlay  = document.getElementById('hold-overlay');
+const runOverlay   = document.getElementById('run-overlay');
+const runTimer     = document.getElementById('run-timer');
+const clearBtn     = document.getElementById('clear-btn');
+const chartCanvas  = document.getElementById('progress-chart');
+const chartHint    = document.getElementById('chart-hint');
 
 // ── FORMAT TIME ───────────────────────────────────────────────────────────────
 function fmt(ms) {
@@ -39,6 +41,70 @@ function releaseWakeLock() {
   if (wakeLock) { wakeLock.release(); wakeLock = null; }
 }
 
+// ── PROGRESS CHART ───────────────────────────────────────────────────────────
+function drawChart() {
+  const dpr = window.devicePixelRatio || 1;
+  const wrap = chartCanvas.parentElement;
+  const w = wrap.clientWidth - 24;
+  const h = 70;
+  chartCanvas.width  = w * dpr;
+  chartCanvas.height = h * dpr;
+  chartCanvas.style.width  = w + 'px';
+  chartCanvas.style.height = h + 'px';
+
+  const ctx = chartCanvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+
+  if (solves.length < 2) {
+    chartHint.style.display = solves.length === 0 ? 'block' : 'none';
+    return;
+  }
+  chartHint.style.display = 'none';
+
+  const times = solves.map(s => s.ms);
+  const minT  = Math.min(...times);
+  const maxT  = Math.max(...times);
+  const range = maxT - minT || 1;
+  const pad   = { top: 8, bottom: 8, left: 4, right: 4 };
+  const chartW = w - pad.left - pad.right;
+  const chartH = h - pad.top - pad.bottom;
+
+  const px = (i) => pad.left + (i / (times.length - 1)) * chartW;
+  const py = (t) => pad.top  + (1 - (t - minT) / range) * chartH;
+
+  // Gradient fill
+  const grad = ctx.createLinearGradient(0, pad.top, 0, h);
+  grad.addColorStop(0, 'rgba(0,229,255,0.35)');
+  grad.addColorStop(1, 'rgba(0,229,255,0)');
+  ctx.beginPath();
+  ctx.moveTo(px(0), py(times[0]));
+  times.forEach((t, i) => { if (i > 0) ctx.lineTo(px(i), py(t)); });
+  ctx.lineTo(px(times.length - 1), h);
+  ctx.lineTo(px(0), h);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Line
+  ctx.beginPath();
+  ctx.moveTo(px(0), py(times[0]));
+  times.forEach((t, i) => { if (i > 0) ctx.lineTo(px(i), py(t)); });
+  ctx.strokeStyle = '#00e5ff';
+  ctx.lineWidth = 2.5;
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+
+  // Dots
+  times.forEach((t, i) => {
+    const isBest = t === minT;
+    ctx.beginPath();
+    ctx.arc(px(i), py(t), isBest ? 5 : 3, 0, Math.PI * 2);
+    ctx.fillStyle = isBest ? '#ffe600' : '#00e5ff';
+    ctx.fill();
+  });
+}
+
 // ── BEST TIME ─────────────────────────────────────────────────────────────────
 function getBest() {
   if (solves.length === 0) return null;
@@ -51,6 +117,7 @@ function updateBestBar() {
 
 // ── RENDER SOLVES ─────────────────────────────────────────────────────────────
 function renderSolves() {
+  drawChart();
   solvesList.innerHTML = '';
   const best = getBest();
   // Show newest first
