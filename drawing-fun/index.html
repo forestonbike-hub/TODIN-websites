@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Drawing Fun</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- MAIN SCREEN -->
+  <div id="screen-main" class="screen active">
+    <div class="top-bar">
+      <h1>Drawing Fun</h1>
+      <div class="top-buttons">
+        <button class="btn btn-red" id="clear-all-btn">Clear All</button>
+        <button class="btn btn-green" id="add-drawing-btn">+ Add Drawing</button>
+      </div>
+    </div>
+    <div id="gallery" class="gallery">
+      <div class="empty-msg" id="empty-msg">No drawings yet! Tap + Add Drawing to start.</div>
+    </div>
+  </div>
+
+  <!-- ADD DRAWING SCREEN -->
+  <div id="screen-add" class="screen">
+    <div class="top-bar">
+      <button class="btn btn-back" id="add-back-btn">Back</button>
+      <h2>What do you want to do?</h2>
+    </div>
+    <div class="choice-buttons">
+      <button class="choice-btn" id="go-color-btn">
+        <span class="choice-icon">🎨</span>
+        <span class="choice-label">Color a Picture</span>
+        <span class="choice-sub">Pick or randomize a line drawing and color it in</span>
+      </button>
+      <button class="choice-btn" id="go-draw-btn">
+        <span class="choice-icon">✏️</span>
+        <span class="choice-label">Free Draw</span>
+        <span class="choice-sub">Blank canvas — draw whatever you want!</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- COLORING SCREEN -->
+  <div id="screen-color" class="screen">
+    <div class="top-bar compact">
+      <button class="btn btn-back" id="color-back-btn">Back</button>
+      <button class="btn btn-yellow" id="random-btn">Random Image</button>
+      <button class="btn btn-purple" id="color-save-btn">Save</button>
+    </div>
+    <div class="canvas-wrap">
+      <canvas id="color-canvas"></canvas>
+    </div>
+    <div class="palette" id="color-palette"></div>
+  </div>
+
+  <!-- FREE DRAW SCREEN -->
+  <div id="screen-draw" class="screen">
+    <div class="top-bar compact">
+      <button class="btn btn-back" id="draw-back-btn">Back</button>
+      <div class="brush-sizes">
+        <button class="size-btn active" data-size="6">S</button>
+        <button class="size-btn" data-size="14">M</button>
+        <button class="size-btn" data-size="26">L</button>
+      </div>
+      <button class="btn btn-yellow" id="draw-undo-btn">Undo</button>
+      <button class="btn btn-red" id="draw-clear-btn">Clear</button>
+      <button class="btn btn-purple" id="draw-save-btn">Save</button>
+    </div>
+    <div class="canvas-wrap">
+      <canvas id="draw-canvas"></canvas>
+    </div>
+    <div class="palette" id="draw-palette"></div>
+  </div>
+
+  <!-- VIEW/EDIT SCREEN -->
+  <div id="screen-view" class="screen">
+    <div class="top-bar compact">
+      <button class="btn btn-back" id="view-back-btn">Back</button>
+      <button class="btn btn-red" id="view-delete-btn">Delete</button>
+      <button class="btn btn-purple" id="view-save-btn">Save Changes</button>
+    </div>
+    <div class="canvas-wrap">
+      <canvas id="view-canvas"></canvas>
+    </div>
+    <div class="palette" id="view-palette"></div>
+  </div>
+
+  <!-- CONFIRM MODAL -->
+  <div id="modal" class="modal hidden">
+    <div class="modal-box">
+      <p id="modal-msg"></p>
+      <div class="modal-btns">
+        <button class="btn btn-red" id="modal-confirm">Yes, do it!</button>
+        <button class="btn btn-grey" id="modal-cancel">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="drawings.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
