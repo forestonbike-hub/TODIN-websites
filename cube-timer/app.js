@@ -179,7 +179,7 @@ function onHoldStart(e) {
   holdTimeout = setTimeout(() => {
     holdOverlay.classList.add('green');
     document.getElementById('hold-text').textContent = 'Let go!';
-  }, 2000);
+  }, 1000);
 }
 
 function onHoldEnd(e) {
