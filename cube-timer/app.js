@@ -7,6 +7,7 @@ let solves     = JSON.parse(localStorage.getItem('cubeSolves') || '[]');
 const DEFAULT_SETTINGS = {
   stageOn: false, stageCount: 4,
   inspOn: false, voiceOn: true, voice1: 8, voice2: 12,
+  stackOn: false,
 };
 let settings = { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem('cubeSettings') || '{}') };
 
@@ -24,7 +25,7 @@ let isInspecting  = false;
 let inspStart     = null;
 let inspInterval  = null;
 let inspCalled    = [false, false];
-let pendingInsp   = null; // { ms, penalty } after inspection stops, until the solve is saved
+let pendingInsp   = null; // { ms, penalty } from this solve's inspection, until the solve is saved
 
 const STAGE_COLORS = ['#40c4ff', '#ff4fa3', '#00e676', '#ffd740', '#b388ff',
                       '#ff9100', '#ff5252', '#64ffda', '#eeff41', '#ffffff'];
@@ -52,7 +53,13 @@ const startInspBtn = document.getElementById('start-insp-btn');
 const inspOverlay  = document.getElementById('insp-overlay');
 const inspTimer    = document.getElementById('insp-timer');
 const inspWarn     = document.getElementById('insp-warn');
-const stopInspBtn  = document.getElementById('stop-insp-btn');
+const startSolveBtn = document.getElementById('start-solve-btn');
+const inspPadHint  = document.getElementById('insp-pad-hint');
+const inspPadsEl   = document.getElementById('insp-pads');
+const runPadsEl    = document.getElementById('run-pads');
+const mainPadArea  = document.getElementById('main-pad-area');
+const mainPadHint  = document.getElementById('main-pad-hint');
+const mainPadsEl   = document.getElementById('main-pads');
 
 const stageToggle  = document.getElementById('stage-toggle');
 const stageCount   = document.getElementById('stage-count');
@@ -63,6 +70,7 @@ const voiceToggle  = document.getElementById('voice-toggle');
 const voiceOptions = document.getElementById('voice-options');
 const voice1Input  = document.getElementById('voice1');
 const voice2Input  = document.getElementById('voice2');
+const stackToggle  = document.getElementById('stack-toggle');
 
 // ── FORMAT TIME ───────────────────────────────────────────────────────────────
 function fmt(ms) {
@@ -126,23 +134,105 @@ function primeSpeech() {
 
 // ── GHOST-CLICK SHIELD ───────────────────────────────────────────────────────
 // Stopping a timer hides its overlay on pointerdown, so the click that follows
-// would land on whatever is underneath (like a delete button). Swallow it.
-let shieldPointer = null;
-let shieldUntil   = 0;
-function shieldClicks(e) {
-  shieldPointer = e.pointerId;
-  shieldUntil   = Date.now() + 3000;   // cap in case pointerup never arrives
+// would land on whatever is underneath (like a delete button). Swallow clicks
+// until every finger that stopped it has lifted.
+let shieldPointers = new Set();
+let shieldSince    = 0;
+let shieldUntil    = 0;
+function shieldClicks(pointerIds) {
+  shieldPointers = new Set(pointerIds);
+  shieldSince    = Date.now();
+  shieldUntil    = Infinity;
 }
 function releaseShield(e) {
-  if (e.pointerId !== shieldPointer) return;
-  shieldPointer = null;
-  shieldUntil   = Date.now() + 400;
+  if (!shieldPointers.delete(e.pointerId)) return;
+  if (shieldPointers.size === 0) shieldUntil = Date.now() + 400;
 }
 document.addEventListener('pointerup', releaseShield, true);
 document.addEventListener('pointercancel', releaseShield, true);
+// A brand-new touch a second later means the hands have moved on
+document.addEventListener('pointerdown', e => {
+  if (shieldPointers.size && !shieldPointers.has(e.pointerId) && Date.now() - shieldSince > 1000) {
+    shieldPointers.clear();
+    shieldUntil = 0;
+  }
+}, true);
 document.addEventListener('click', e => {
   if (Date.now() < shieldUntil) { e.preventDefault(); e.stopPropagation(); }
 }, true);
+
+// ── STACK MAT PADS ───────────────────────────────────────────────────────────
+// Two pads, one per hand. 'start' pads turn green once both are held for half a
+// second, then lifting either hand calls onLift. 'stop' pads call onBothDown the
+// moment both are pressed.
+function makePads(el, mode, { onLift, onBothDown, onChange }) {
+  const pads  = [...el.querySelectorAll('.pad')];
+  const held  = pads.map(() => new Set());   // pointer ids touching each pad
+  let readyTimer = null;
+  let ready      = false;
+  const bothDown = () => held.every(s => s.size > 0);
+
+  function state() {
+    if (ready) return 'ready';
+    return bothDown() ? 'holding' : 'idle';
+  }
+  function refresh() {
+    pads.forEach((p, i) => p.classList.toggle('down', held[i].size > 0));
+    el.classList.toggle('ready', ready);
+    if (onChange) onChange(state());
+  }
+  function reset() {
+    held.forEach(s => s.clear());
+    clearTimeout(readyTimer);
+    readyTimer = null;
+    ready = false;
+    refresh();
+  }
+
+  pads.forEach((pad, i) => pad.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    held[i].add(e.pointerId);
+    if (mode === 'stop') {
+      refresh();
+      if (bothDown()) onBothDown([...held[0], ...held[1]]);
+      return;
+    }
+    if (bothDown() && !readyTimer && !ready) {
+      readyTimer = setTimeout(() => { ready = true; refresh(); }, 500);
+    }
+    refresh();
+  }));
+
+  function release(e) {
+    const i = held.findIndex(s => s.has(e.pointerId));
+    if (i < 0) return;
+    held[i].delete(e.pointerId);
+    if (mode === 'start') {
+      if (ready) {
+        reset();
+        onLift();
+        return;
+      }
+      if (!bothDown()) { clearTimeout(readyTimer); readyTimer = null; }
+    }
+    refresh();
+  }
+  document.addEventListener('pointerup', release);
+  document.addEventListener('pointercancel', release);
+
+  return { reset };
+}
+
+function padHintText(state, idleText) {
+  if (state === 'ready')   return 'Lift a hand to start!';
+  if (state === 'holding') return 'Hold...';
+  return idleText;
+}
+function showPadHint(el, state, idleText) {
+  el.textContent = padHintText(state, idleText);
+  el.classList.toggle('holding', state === 'holding');
+  el.classList.toggle('ready',   state === 'ready');
+}
 
 // ── CHARTS ────────────────────────────────────────────────────────────────────
 function prepCanvas(canvas, h) {
@@ -334,7 +424,10 @@ function renderStageTable() {
   if (rows.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'stage-empty';
-    empty.textContent = `No stage solves yet. Hold to start, then tap the screen each time you finish a stage (${n} taps in all).`;
+    const how = settings.stackOn
+      ? `tap the screen after each stage, and put both hands on the pads when Stage ${n} is done`
+      : `tap the screen each time you finish a stage (${n} taps in all)`;
+    empty.textContent = `No stage solves yet. Start a solve, then ${how}.`;
     solvesList.appendChild(empty);
     return;
   }
@@ -406,15 +499,17 @@ function setStatus(text, tone) {
   statusNote.className = tone || '';
 }
 
-function needsInspection() {
-  return settings.inspOn && !pendingInsp;
-}
-
-// With inspection on, the big Start Inspection button replaces "Hold to start"
+// How a solve gets started from the main screen:
+//   Inspection on               -> big Start Inspection button
+//   Inspection off, Stack Mat on -> two hand pads
+//   both off                    -> hold anywhere
 function updateReady() {
-  const need = needsInspection();
-  startInspBtn.classList.toggle('hidden', !need);
-  hint.classList.toggle('hidden', need);
+  const insp  = settings.inspOn;
+  const stack = settings.stackOn && !insp;
+  startInspBtn.classList.toggle('hidden', !insp);
+  mainPadArea.classList.toggle('hidden', !stack);
+  hint.classList.toggle('hidden', insp || stack);
+  mainPads.reset();
 }
 
 function nudgeStartButton() {
@@ -433,6 +528,16 @@ function startInspection() {
   inspCalled = [false, false];
   inspTimer.textContent = '0';
   inspWarn.textContent = '';
+  setStatus('');
+
+  // Stack Mat swaps the Start Solve Timer button for the two hand pads
+  const stack = settings.stackOn;
+  startSolveBtn.classList.toggle('hidden', stack);
+  inspPadHint.classList.toggle('hidden', !stack);
+  inspPadsEl.classList.toggle('hidden', !stack);
+  inspOverlay.classList.toggle('stack', stack);
+  inspPads.reset();
+
   inspOverlay.classList.remove('hidden', 'warn', 'dnf');
   inspInterval = setInterval(tickInspection, 50);
   requestWakeLock();
@@ -457,30 +562,36 @@ function tickInspection() {
   inspWarn.textContent = p === '+2' ? '+2 penalty' : p === 'DNF' ? 'DNF' : '';
 }
 
-function stopInspection(e) {
+// Inspection ends and the solve clock starts at the same instant
+function startSolveFromInspection() {
   if (!isInspecting) return;
-  const ms = Date.now() - inspStart;
+  const now = Date.now();
+  const ms  = now - inspStart;
   clearInterval(inspInterval);
   isInspecting = false;
-  lastStopAt = Date.now();
-  shieldClicks(e);
   inspOverlay.classList.add('hidden');
-
   pendingInsp = { ms, penalty: inspPenalty(ms) };
-  if (pendingInsp.penalty === 'DNF') {
-    setStatus(`Inspection ${fmtSecs(ms)} sec: this solve will be a DNF`, 'danger');
-  } else if (pendingInsp.penalty === '+2') {
-    setStatus(`Inspection ${fmtSecs(ms)} sec: +2 will be added`, 'warn');
-  } else {
-    setStatus(`Inspection ${fmtSecs(ms)} sec`);
-  }
-  updateReady();
+  startTimer(now);
 }
 
 startInspBtn.addEventListener('click', startInspection);
-stopInspBtn.addEventListener('pointerdown', e => {
+startSolveBtn.addEventListener('pointerdown', e => {
   e.preventDefault();
-  stopInspection(e);
+  startSolveFromInspection();
+});
+
+const inspPads = makePads(inspPadsEl, 'start', {
+  onLift: startSolveFromInspection,
+  onChange: (state) => showPadHint(inspPadHint, state, 'Both hands on the pads when you are ready'),
+});
+
+// Stack Mat without inspection: the pads on the main screen start the solve
+const mainPads = makePads(mainPadsEl, 'start', {
+  onLift: () => {
+    if (isRunning || isInspecting || settings.inspOn) return;
+    startTimer(Date.now());
+  },
+  onChange: (state) => showPadHint(mainPadHint, state, 'Both hands on the pads, then lift to start'),
 });
 
 // ── TIMER LOOP ────────────────────────────────────────────────────────────────
@@ -502,32 +613,36 @@ function renderRunSplits() {
     runSplits.appendChild(el);
   });
 
+  const stack = settings.stackOn;
   if (settings.stageOn && settings.stageCount > 1) {
     const next = splits.length + 1;
-    runHint.textContent = next === settings.stageCount
-      ? `Tap when Stage ${next} is done to finish`
-      : `Tap when Stage ${next} is done`;
+    const last = next === settings.stageCount;
+    if (!last)      runHint.textContent = `Tap when Stage ${next} is done`;
+    else if (stack) runHint.textContent = `Both hands on the pads when Stage ${next} is done`;
+    else            runHint.textContent = `Tap when Stage ${next} is done to finish`;
     runHint.style.color = stageColor(next - 1);
     runHint.classList.add('stage');
   } else {
-    runHint.textContent = 'Tap anywhere to stop';
+    runHint.textContent = stack ? 'Both hands on the pads to stop' : 'Tap anywhere to stop';
     runHint.style.color = '';
-    runHint.classList.remove('stage');
+    runHint.classList.toggle('stage', stack);
   }
 }
 
 // ── HOLD TO START ─────────────────────────────────────────────────────────────
 function onHoldStart(e) {
   if (isRunning || isHolding || isInspecting) return;
-  // Ignore taps on buttons and settings
-  if (e.target.closest('button, #settings')) return;
+  // Ignore taps on buttons, settings and pads
+  if (e.target.closest('button, #settings, .pad')) return;
   // Ignore a second hand landing right after a stop
   if (Date.now() - lastStopAt < 400) return;
   if (document.activeElement) document.activeElement.blur();
-  if (needsInspection()) {
+  if (settings.inspOn) {
     nudgeStartButton();
     return;
   }
+  // With Stack Mat on, only the pads start a solve
+  if (settings.stackOn) return;
   isHolding = true;
   holdOverlay.classList.remove('hidden');
   holdOverlay.classList.remove('green');
@@ -558,11 +673,19 @@ function onHoldEnd(e) {
 }
 
 // ── START / STOP ──────────────────────────────────────────────────────────────
-function startTimer() {
+function startTimer(now = Date.now()) {
   isRunning = true;
-  startTime = Date.now();
+  startTime = now;
   lastTapAt = startTime;
   splits = [];
+  setStatus('');
+
+  // Stack Mat: both hands back on the pads stops the timer
+  const stack = settings.stackOn;
+  runPadsEl.classList.toggle('hidden', !stack);
+  runOverlay.classList.toggle('stack', stack);
+  runPads.reset();
+
   runOverlay.classList.remove('hidden');
   runTimer.textContent = '0:00.00';
   renderRunSplits();
@@ -580,9 +703,15 @@ function stopTimer(now) {
   hint.textContent = 'Hold to start';
 
   const extra = {};
+  let missedStages = false;
   if (settings.stageOn) {
     const marks = [...splits, elapsed];
-    extra.stages = marks.map((t, i) => t - (i ? marks[i - 1] : 0));
+    // Stopped on the pads before every stage was tapped: keep the total only
+    if (marks.length === settings.stageCount) {
+      extra.stages = marks.map((t, i) => t - (i ? marks[i - 1] : 0));
+    } else {
+      missedStages = true;
+    }
   }
   if (pendingInsp) {
     extra.insp = pendingInsp.ms;
@@ -590,16 +719,21 @@ function stopTimer(now) {
   }
   pendingInsp = null;
 
+  const notes = [];
+  let tone = '';
+  timerText.textContent = fmt(elapsed + (extra.penalty === '+2' ? 2000 : 0));
   if (extra.penalty === '+2') {
-    timerText.textContent = fmt(elapsed + 2000);
-    setStatus(`+2 penalty added (inspected ${fmtSecs(extra.insp)} sec)`, 'warn');
+    notes.push(`+2 penalty added (inspected ${fmtSecs(extra.insp)} sec)`);
+    tone = 'warn';
   } else if (extra.penalty === 'DNF') {
-    timerText.textContent = fmt(elapsed);
-    setStatus(`DNF: inspected ${fmtSecs(extra.insp)} sec, so this one doesn't count`, 'danger');
-  } else {
-    timerText.textContent = fmt(elapsed);
-    setStatus('');
+    notes.push(`DNF: inspected ${fmtSecs(extra.insp)} sec, so this one doesn't count`);
+    tone = 'danger';
   }
+  if (missedStages) {
+    notes.push(`Only ${splits.length + 1} of ${settings.stageCount} stages tapped, so it's not in the stage table`);
+    tone = tone || 'warn';
+  }
+  setStatus(notes.join(' · '), tone);
 
   addSolve(elapsed, extra);
   updateReady();
@@ -613,15 +747,26 @@ runOverlay.addEventListener('pointerdown', e => {
   const now = Date.now();
   // Ignore a double tap (both hands landing together)
   if (now - lastTapAt < 300) return;
-  lastTapAt = now;
 
   if (settings.stageOn && splits.length < settings.stageCount - 1) {
+    lastTapAt = now;
     splits.push(now - startTime);
     renderRunSplits();
-  } else {
-    shieldClicks(e);
+  } else if (!settings.stackOn) {
+    lastTapAt = now;
+    shieldClicks([e.pointerId]);
     stopTimer(now);
   }
+  // With Stack Mat on, only both pads together stop the timer
+});
+
+const runPads = makePads(runPadsEl, 'stop', {
+  onBothDown: (pointerIds) => {
+    const now = Date.now();
+    if (!isRunning || now - startTime < 300) return;
+    shieldClicks(pointerIds);
+    stopTimer(now);
+  },
 });
 
 // ── HOLD LISTENERS on main app ────────────────────────────────────────────────
@@ -651,10 +796,6 @@ function applySettings() {
   stageWrap.classList.toggle('hidden', !settings.stageOn);
   inspOptions.classList.toggle('hidden', !settings.inspOn);
   voiceOptions.classList.toggle('hidden', !settings.voiceOn);
-  if (!settings.inspOn && pendingInsp) {
-    pendingInsp = null;
-    setStatus('');
-  }
   renderLegend();
   renderSolves();
   updateReady();
@@ -687,6 +828,7 @@ bindToggle(inspToggle, 'inspOn');
 bindToggle(voiceToggle, 'voiceOn');
 bindNumber(voice1Input, 'voice1', 1, 60);
 bindNumber(voice2Input, 'voice2', 1, 60);
+bindToggle(stackToggle, 'stackOn');
 
 // ── BLOCK LONG-PRESS CONTEXT MENU ────────────────────────────────────────────
 document.addEventListener('contextmenu', e => e.preventDefault());

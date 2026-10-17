@@ -63,6 +63,13 @@
             <label class="num-field">2nd call <input type="number" id="voice2" inputmode="numeric" min="1" max="60"> sec</label>
           </span>
         </div>
+
+        <div class="setting-line">
+          <label class="toggle-row">
+            <span class="setting-label">Stack Mat</span>
+            <span class="switch"><input type="checkbox" id="stack-toggle"><span class="slider"></span></span>
+          </label>
+        </div>
       </div>
 
     </div>
@@ -75,6 +82,13 @@
         <div id="status-note"></div>
         <div id="hint">Hold to start</div>
         <button id="start-insp-btn" class="hidden">Start Inspection</button>
+        <div id="main-pad-area" class="hidden">
+          <div id="main-pad-hint" class="pad-hint"></div>
+          <div id="main-pads" class="pads">
+            <div class="pad left"><span>✋</span></div>
+            <div class="pad right"><span>✋</span></div>
+          </div>
+        </div>
       </div>
 
       <div id="solves-section">
@@ -96,17 +110,30 @@
 
   <!-- INSPECTION OVERLAY (counts up seconds) -->
   <div id="insp-overlay" class="hidden">
-    <div id="insp-label">Inspection</div>
-    <div id="insp-timer">0</div>
-    <div id="insp-warn"></div>
-    <button id="stop-insp-btn">Stop Inspection</button>
+    <div class="overlay-center">
+      <div id="insp-label">Inspection</div>
+      <div id="insp-timer">0</div>
+      <div id="insp-warn"></div>
+      <button id="start-solve-btn">Start Solve Timer</button>
+      <div id="insp-pad-hint" class="pad-hint hidden"></div>
+    </div>
+    <div id="insp-pads" class="pads side-pads hidden">
+      <div class="pad left"><span>✋</span></div>
+      <div class="pad right"><span>✋</span></div>
+    </div>
   </div>
 
   <!-- RUNNING OVERLAY (fullscreen timer) -->
   <div id="run-overlay" class="hidden">
-    <div id="run-timer">0:00.00</div>
-    <div id="run-splits"></div>
-    <div id="run-hint">Tap anywhere to stop</div>
+    <div class="overlay-center">
+      <div id="run-timer">0:00.00</div>
+      <div id="run-splits"></div>
+      <div id="run-hint">Tap anywhere to stop</div>
+    </div>
+    <div id="run-pads" class="pads side-pads hidden">
+      <div class="pad left"><span>✋</span></div>
+      <div class="pad right"><span>✋</span></div>
+    </div>
   </div>
 
   <script src="app.js"></script>

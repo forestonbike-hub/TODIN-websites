@@ -507,24 +507,107 @@ html, body {
 #insp-overlay.warn #insp-warn { color: var(--warn); }
 #insp-overlay.dnf #insp-timer,
 #insp-overlay.dnf #insp-warn  { color: var(--danger); }
-#stop-insp-btn {
+#start-solve-btn {
   margin-top: 16px;
   width: min(92vw, 720px);
   min-height: max(140px, 26vh);
   border: none;
   border-radius: 28px;
-  background: #ff4f6d;
-  color: #fff;
+  background: var(--green);
+  color: #00330f;
   font-family: inherit;
   font-size: clamp(2rem, 6vw, 3.2rem);
   font-weight: 900;
   letter-spacing: 0.02em;
   cursor: pointer;
-  box-shadow: 0 8px 0 #a3243a;
+  box-shadow: 0 8px 0 #00863f;
 }
-#stop-insp-btn:active {
+#start-solve-btn:active {
   transform: translateY(5px);
-  box-shadow: 0 3px 0 #a3243a;
+  box-shadow: 0 3px 0 #00863f;
+}
+
+/* Centered content inside the full-screen overlays */
+.overlay-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+}
+
+/* ── STACK MAT PADS ── */
+.pads {
+  display: flex;
+  gap: 16px;
+}
+.pad {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--card);
+  border: 3px solid #333;
+  border-radius: 28px;
+  font-size: 3rem;
+  touch-action: none;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+}
+.pad span {
+  display: inline-block;
+  opacity: 0.45;
+  filter: grayscale(1);
+}
+.pad.left span { transform: scaleX(-1); }
+.pad.down { background: #332b00; border-color: var(--warn); }
+.pad.down span { opacity: 1; filter: none; }
+.pads.ready .pad { background: #0b3d1f; border-color: var(--green); }
+#run-pads .pad.down { background: #00323a; border-color: var(--accent); }
+
+.pad-hint {
+  min-height: 1.6rem;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-align: center;
+}
+.pad-hint.holding { color: var(--warn); }
+.pad-hint.ready   { color: var(--green); }
+
+/* Main screen pads (Stack Mat on, Inspection off) */
+#main-pad-area {
+  margin-top: 16px;
+  width: min(90%, 600px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+#main-pads { height: 130px; }
+
+/* Overlay pads: a row along the bottom when upright, the left and right edges when sideways */
+.side-pads {
+  width: 100%;
+  height: 38vh;
+  margin-top: 20px;
+}
+@media (orientation: landscape) {
+  .side-pads {
+    position: absolute;
+    inset: 16px;
+    width: auto;
+    height: auto;
+    margin: 0;
+    justify-content: space-between;
+    pointer-events: none;
+  }
+  .side-pads .pad {
+    flex: 0 0 24vw;
+    pointer-events: auto;
+  }
+  #insp-overlay.stack .overlay-center,
+  #run-overlay.stack .overlay-center { max-width: calc(52vw - 64px); }
+  #run-overlay.stack #run-timer { font-size: min(9vw, 7rem); letter-spacing: -1px; }
 }
 
 /* ── RUNNING OVERLAY ── */
@@ -535,6 +618,7 @@ html, body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  padding: 24px;
   z-index: 20;
   cursor: pointer;
 }
