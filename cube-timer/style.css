@@ -554,16 +554,22 @@ html, body {
   cursor: pointer;
   transition: background 0.1s, border-color 0.1s;
 }
-.pad span {
-  display: inline-block;
-  opacity: 0.45;
-  filter: grayscale(1);
+.pad .hand {
+  width: 64px;
+  height: 74px;
+  fill: currentColor;
+  color: #4a4a4a;
+  transition: color 0.1s;
 }
-.pad.left span { transform: scaleX(-1); }
+.side-pads .hand { width: 96px; height: 111px; }
+/* Mirror the right hand so both thumbs point toward the middle */
+.pad.right .hand { transform: scaleX(-1); }
 .pad.down { background: #332b00; border-color: var(--warn); }
-.pad.down span { opacity: 1; filter: none; }
+.pad.down .hand { color: var(--warn); }
 .pads.ready .pad { background: #0b3d1f; border-color: var(--green); }
+.pads.ready .pad .hand { color: var(--green); }
 #run-pads .pad.down { background: #00323a; border-color: var(--accent); }
+#run-pads .pad.down .hand { color: var(--accent); }
 
 .pad-hint {
   min-height: 1.6rem;

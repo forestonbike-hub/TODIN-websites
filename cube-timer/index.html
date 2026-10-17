@@ -8,6 +8,20 @@
 </head>
 <body>
 
+  <!-- Hand shape for the Stack Mat pads: a left hand, palm down, thumb on the right.
+       The right pad mirrors it so both thumbs point inward. -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="hand" viewBox="0 0 104 120">
+      <rect x="14" y="50" width="56" height="58" rx="20"/>
+      <rect x="14" y="36" width="12" height="36" rx="6"/>
+      <rect x="28" y="20" width="13" height="48" rx="6.5"/>
+      <rect x="43" y="12" width="13" height="56" rx="6.5"/>
+      <rect x="58" y="20" width="12" height="48" rx="6"/>
+      <circle cx="64" cy="88" r="11"/>
+      <rect x="66" y="58" width="13" height="36" rx="6.5" transform="rotate(35 72.5 94)"/>
+    </symbol>
+  </svg>
+
   <!-- NORMAL VIEW -->
   <div id="app">
 
@@ -85,8 +99,8 @@
         <div id="main-pad-area" class="hidden">
           <div id="main-pad-hint" class="pad-hint"></div>
           <div id="main-pads" class="pads">
-            <div class="pad left"><span>✋</span></div>
-            <div class="pad right"><span>✋</span></div>
+            <div class="pad left"><svg class="hand"><use href="#hand"/></svg></div>
+            <div class="pad right"><svg class="hand"><use href="#hand"/></svg></div>
           </div>
         </div>
       </div>
@@ -118,8 +132,8 @@
       <div id="insp-pad-hint" class="pad-hint hidden"></div>
     </div>
     <div id="insp-pads" class="pads side-pads hidden">
-      <div class="pad left"><span>✋</span></div>
-      <div class="pad right"><span>✋</span></div>
+      <div class="pad left"><svg class="hand"><use href="#hand"/></svg></div>
+      <div class="pad right"><svg class="hand"><use href="#hand"/></svg></div>
     </div>
   </div>
 
@@ -131,8 +145,8 @@
       <div id="run-hint">Tap anywhere to stop</div>
     </div>
     <div id="run-pads" class="pads side-pads hidden">
-      <div class="pad left"><span>✋</span></div>
-      <div class="pad right"><span>✋</span></div>
+      <div class="pad left"><svg class="hand"><use href="#hand"/></svg></div>
+      <div class="pad right"><svg class="hand"><use href="#hand"/></svg></div>
     </div>
   </div>
 

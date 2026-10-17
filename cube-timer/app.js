@@ -613,7 +613,14 @@ function renderRunSplits() {
     runSplits.appendChild(el);
   });
 
+  // Stack Mat pads stay hidden while stages are being tapped, and appear
+  // for the last stage: both hands back on the pads stops the timer
   const stack = settings.stackOn;
+  const stagesLeft = settings.stageOn && splits.length < settings.stageCount - 1;
+  const showPads = stack && !stagesLeft;
+  runPadsEl.classList.toggle('hidden', !showPads);
+  runOverlay.classList.toggle('stack', showPads);
+
   if (settings.stageOn && settings.stageCount > 1) {
     const next = splits.length + 1;
     const last = next === settings.stageCount;
@@ -679,11 +686,6 @@ function startTimer(now = Date.now()) {
   lastTapAt = startTime;
   splits = [];
   setStatus('');
-
-  // Stack Mat: both hands back on the pads stops the timer
-  const stack = settings.stackOn;
-  runPadsEl.classList.toggle('hidden', !stack);
-  runOverlay.classList.toggle('stack', stack);
   runPads.reset();
 
   runOverlay.classList.remove('hidden');
@@ -703,15 +705,9 @@ function stopTimer(now) {
   hint.textContent = 'Hold to start';
 
   const extra = {};
-  let missedStages = false;
   if (settings.stageOn) {
     const marks = [...splits, elapsed];
-    // Stopped on the pads before every stage was tapped: keep the total only
-    if (marks.length === settings.stageCount) {
-      extra.stages = marks.map((t, i) => t - (i ? marks[i - 1] : 0));
-    } else {
-      missedStages = true;
-    }
+    extra.stages = marks.map((t, i) => t - (i ? marks[i - 1] : 0));
   }
   if (pendingInsp) {
     extra.insp = pendingInsp.ms;
@@ -719,21 +715,14 @@ function stopTimer(now) {
   }
   pendingInsp = null;
 
-  const notes = [];
-  let tone = '';
   timerText.textContent = fmt(elapsed + (extra.penalty === '+2' ? 2000 : 0));
   if (extra.penalty === '+2') {
-    notes.push(`+2 penalty added (inspected ${fmtSecs(extra.insp)} sec)`);
-    tone = 'warn';
+    setStatus(`+2 penalty added (inspected ${fmtSecs(extra.insp)} sec)`, 'warn');
   } else if (extra.penalty === 'DNF') {
-    notes.push(`DNF: inspected ${fmtSecs(extra.insp)} sec, so this one doesn't count`);
-    tone = 'danger';
+    setStatus(`DNF: inspected ${fmtSecs(extra.insp)} sec, so this one doesn't count`, 'danger');
+  } else {
+    setStatus('');
   }
-  if (missedStages) {
-    notes.push(`Only ${splits.length + 1} of ${settings.stageCount} stages tapped, so it's not in the stage table`);
-    tone = tone || 'warn';
-  }
-  setStatus(notes.join(' · '), tone);
 
   addSolve(elapsed, extra);
   updateReady();
