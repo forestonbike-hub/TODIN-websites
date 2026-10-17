@@ -11,29 +11,80 @@
   <!-- NORMAL VIEW -->
   <div id="app">
 
-    <div id="top-row">
-      <div id="chart-wrap">
-        <div id="chart-title">Progress</div>
-        <canvas id="progress-chart"></canvas>
-        <div id="chart-hint">No solves yet</div>
+    <!-- LEFT SIDE (top in portrait): charts + settings -->
+    <div id="side">
+
+      <div id="top-row">
+        <div id="chart-wrap" class="chart-card">
+          <div class="chart-title">Progress</div>
+          <canvas id="progress-chart"></canvas>
+          <div id="chart-hint" class="chart-hint">No solves yet</div>
+        </div>
+        <div id="best-bar">
+          <span id="best-label">Best Time</span>
+          <span id="best-time">--:--.--</span>
+        </div>
       </div>
-      <div id="best-bar">
-        <span id="best-label">Best Time</span>
-        <span id="best-time">--:--.--</span>
+
+      <div id="stage-chart-wrap" class="chart-card hidden">
+        <div class="chart-head">
+          <span class="chart-title">Stage Progress</span>
+          <span id="stage-legend"></span>
+        </div>
+        <canvas id="stage-chart"></canvas>
+        <div id="stage-chart-hint" class="chart-hint">Finish 2 stage solves to see this chart</div>
       </div>
+
+      <div id="settings">
+        <div class="setting-line">
+          <label class="toggle-row">
+            <span class="setting-label">Stage Practice</span>
+            <span class="switch"><input type="checkbox" id="stage-toggle"><span class="slider"></span></span>
+          </label>
+          <label id="stage-options" class="num-field">
+            Stages <input type="number" id="stage-count" inputmode="numeric" min="1" max="10">
+          </label>
+        </div>
+
+        <div class="setting-line">
+          <label class="toggle-row">
+            <span class="setting-label">Inspection Time</span>
+            <span class="switch"><input type="checkbox" id="insp-toggle"><span class="slider"></span></span>
+          </label>
+        </div>
+
+        <div id="insp-options" class="setting-line sub">
+          <label class="toggle-row">
+            <span class="setting-label">Voice Callouts</span>
+            <span class="switch"><input type="checkbox" id="voice-toggle"><span class="slider"></span></span>
+          </label>
+          <span id="voice-options" class="voice-fields">
+            <label class="num-field">1st call <input type="number" id="voice1" inputmode="numeric" min="1" max="60"> sec</label>
+            <label class="num-field">2nd call <input type="number" id="voice2" inputmode="numeric" min="1" max="60"> sec</label>
+          </span>
+        </div>
+      </div>
+
     </div>
 
-    <div id="timer-display">
-      <span id="timer-text">0:00.00</span>
-      <div id="hint">Hold to start</div>
-    </div>
+    <!-- RIGHT SIDE (bottom in portrait): timer + solves -->
+    <div id="main">
 
-    <div id="solves-section">
-      <div id="solves-header">
-        <span>Solves</span>
-        <button id="clear-btn">Clear All</button>
+      <div id="timer-display">
+        <span id="timer-text">0:00.00</span>
+        <div id="status-note"></div>
+        <div id="hint">Hold to start</div>
+        <button id="start-insp-btn" class="hidden">Start Inspection</button>
       </div>
-      <div id="solves-list"></div>
+
+      <div id="solves-section">
+        <div id="solves-header">
+          <span>Solves</span>
+          <button id="clear-btn">Clear All</button>
+        </div>
+        <div id="solves-list"></div>
+      </div>
+
     </div>
 
   </div>
@@ -43,9 +94,18 @@
     <div id="hold-text">Keep holding...</div>
   </div>
 
+  <!-- INSPECTION OVERLAY (counts up seconds) -->
+  <div id="insp-overlay" class="hidden">
+    <div id="insp-label">Inspection</div>
+    <div id="insp-timer">0</div>
+    <div id="insp-warn"></div>
+    <button id="stop-insp-btn">Stop Inspection</button>
+  </div>
+
   <!-- RUNNING OVERLAY (fullscreen timer) -->
   <div id="run-overlay" class="hidden">
     <div id="run-timer">0:00.00</div>
+    <div id="run-splits"></div>
     <div id="run-hint">Tap anywhere to stop</div>
   </div>
 
