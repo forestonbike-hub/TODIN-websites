@@ -274,6 +274,26 @@ html, body {
 #status-note:empty { display: none; }
 #status-note.warn   { color: var(--warn); }
 #status-note.danger { color: var(--danger); }
+/* Penalty buttons shown after a solve */
+#penalty-btns {
+  display: flex;
+  gap: 12px;
+  margin-top: 14px;
+}
+.penalty-btn {
+  min-height: 52px;
+  padding: 0 22px;
+  background: transparent;
+  border-radius: 14px;
+  font-family: inherit;
+  font-size: 1.1rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.penalty-btn.plus2 { border: 2px solid #ffab00; color: #ffab00; }
+.penalty-btn.dnf   { border: 2px solid var(--danger); color: var(--danger); }
+.penalty-btn:active { opacity: 0.6; }
+
 #hint {
   margin-top: 14px;
   font-size: 1rem;
@@ -659,6 +679,55 @@ html, body {
   font-weight: 700;
   color: var(--accent);
 }
+
+/* ── CONFIRM POP-UP ── */
+#modal {
+  position: fixed; inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0,0,0,0.75);
+}
+.modal-card {
+  width: min(100%, 460px);
+  padding: 28px 24px 22px;
+  background: #1f1f1f;
+  border-radius: 22px;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+}
+#modal-title {
+  margin-bottom: 10px;
+  font-size: 1.6rem;
+  font-weight: 900;
+}
+#modal-text {
+  margin-bottom: 22px;
+  font-size: 1.05rem;
+  line-height: 1.45;
+  color: #bbb;
+}
+.modal-btns {
+  display: flex;
+  gap: 12px;
+}
+.modal-btns button {
+  flex: 1;
+  min-height: 64px;
+  border: none;
+  border-radius: 16px;
+  font-family: inherit;
+  font-size: 1.15rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.modal-btns button:active { opacity: 0.7; }
+#modal-no  { background: #333; color: var(--text); }
+#modal-yes { background: var(--accent); color: #00262b; }
+#modal-yes.plus2 { background: #ffab00; color: #000; }
+#modal-yes.dnf   { background: var(--danger); color: #fff; }
 
 /* Scrollbar styling */
 #solves-list::-webkit-scrollbar,

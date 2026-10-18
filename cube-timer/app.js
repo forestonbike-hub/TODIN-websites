@@ -1,7 +1,8 @@
 // ── STATE ─────────────────────────────────────────────────────────────────────
 let solves     = JSON.parse(localStorage.getItem('cubeSolves') || '[]');
 // solves[i] = { id, ms, penalty?, insp?, stages? }
-//   penalty: '+2' or 'DNF' from a long inspection, insp: inspection length in ms
+//   penalty: '+2', '+4' or 'DNF', from a long inspection and/or the buttons after a solve
+//   insp:    inspection length in ms
 //   stages:  ms for each stage (Stage Practice), adds up to ms
 
 const DEFAULT_SETTINGS = {
@@ -26,6 +27,9 @@ let inspStart     = null;
 let inspInterval  = null;
 let inspCalled    = [false, false];
 let pendingInsp   = null; // { ms, penalty } from this solve's inspection, until the solve is saved
+
+let lastSolveId   = null;  // the solve the +2 / DNF buttons apply to
+let plus2Added    = false; // the +2 button only works once per solve
 
 const STAGE_COLORS = ['#40c4ff', '#ff4fa3', '#00e676', '#ffd740', '#b388ff',
                       '#ff9100', '#ff5252', '#64ffda', '#eeff41', '#ffffff'];
@@ -72,6 +76,15 @@ const voice1Input  = document.getElementById('voice1');
 const voice2Input  = document.getElementById('voice2');
 const stackToggle  = document.getElementById('stack-toggle');
 
+const penaltyBtns  = document.getElementById('penalty-btns');
+const plus2Btn     = document.getElementById('plus2-btn');
+const dnfBtn       = document.getElementById('dnf-btn');
+const modal        = document.getElementById('modal');
+const modalTitle   = document.getElementById('modal-title');
+const modalText    = document.getElementById('modal-text');
+const modalYes     = document.getElementById('modal-yes');
+const modalNo      = document.getElementById('modal-no');
+
 // ── FORMAT TIME ───────────────────────────────────────────────────────────────
 function fmt(ms) {
   const mins  = Math.floor(ms / 60000);
@@ -92,8 +105,11 @@ function fmtSecs(ms) {
 }
 
 // ── SOLVE HELPERS ─────────────────────────────────────────────────────────────
+const PENALTY_MS = { '+2': 2000, '+4': 4000 };
 function isDNF(s)   { return s.penalty === 'DNF'; }
-function finalMs(s) { return s.ms + (s.penalty === '+2' ? 2000 : 0); }
+function finalMs(s) { return s.ms + (PENALTY_MS[s.penalty] || 0); }
+// The time to show and chart: DNFs keep their real time, with a DNF note
+function shownMs(s) { return isDNF(s) ? s.ms : finalMs(s); }
 function inspPenalty(ms) {
   if (ms >= 17000) return 'DNF';
   if (ms >= 15000) return '+2';
@@ -276,19 +292,21 @@ function strokeLine(ctx, times, px, py, color, width) {
   ctx.stroke();
 }
 
-// Total time for every solve that counts (DNFs are left out)
+// Total time for every solve in history. Kept DNFs show as red dots and never
+// count as the best (yellow) dot.
 function drawChart() {
   const h = 70;
   const { ctx, w } = prepCanvas(chartCanvas, h);
 
-  const times = solves.filter(s => !isDNF(s)).map(finalMs);
+  const times = solves.map(shownMs);
   if (times.length < 2) {
     chartHint.style.display = solves.length === 0 ? 'block' : 'none';
     return;
   }
   chartHint.style.display = 'none';
 
-  const { minT, px, py } = chartScale([times], w, h);
+  const { px, py } = chartScale([times], w, h);
+  const best = getBest();
 
   // Gradient fill
   const grad = ctx.createLinearGradient(0, 8, 0, h);
@@ -308,10 +326,11 @@ function drawChart() {
 
   // Dots
   times.forEach((t, i) => {
-    const isBest = t === minT;
+    const dnf    = isDNF(solves[i]);
+    const isBest = !dnf && t === best;
     ctx.beginPath();
-    ctx.arc(px(i), py(t), isBest ? 5 : 3, 0, Math.PI * 2);
-    ctx.fillStyle = isBest ? '#ffe600' : '#00e5ff';
+    ctx.arc(px(i), py(t), isBest ? 5 : dnf ? 4 : 3, 0, Math.PI * 2);
+    ctx.fillStyle = isBest ? '#ffe600' : dnf ? '#ff5252' : '#00e5ff';
     ctx.fill();
   });
 }
@@ -322,7 +341,7 @@ function drawStageChart() {
   const h = 80;
   const { ctx, w } = prepCanvas(stageCanvas, h);
 
-  const rows = stageSolves().filter(s => !isDNF(s));
+  const rows = stageSolves();
   if (rows.length < 2) {
     stageHint.style.display = 'block';
     return;
@@ -372,11 +391,11 @@ function timeWithBadge(s, className) {
   const wrap = document.createElement('span');
   const timeEl = document.createElement('span');
   timeEl.className = className + (isDNF(s) ? ' dnf-time' : '');
-  timeEl.textContent = fmt(isDNF(s) ? s.ms : finalMs(s));
+  timeEl.textContent = fmt(shownMs(s));
   wrap.appendChild(timeEl);
   if (s.penalty) {
     const badge = document.createElement('span');
-    badge.className = 'badge ' + (s.penalty === '+2' ? 'plus2' : 'dnf');
+    badge.className = 'badge ' + (isDNF(s) ? 'dnf' : 'plus2');
     badge.textContent = s.penalty;
     wrap.appendChild(badge);
   }
@@ -398,6 +417,7 @@ function renderSolves() {
   if (settings.stageOn) renderStageTable();
   else renderSolveList();
   updateBestBar();
+  updatePenaltyButtons();
 }
 
 function renderSolveList() {
@@ -482,9 +502,11 @@ function saveSolves() {
 }
 
 function addSolve(ms, extra) {
-  solves.push({ id: Date.now(), ms, ...extra });
+  const solve = { id: Date.now(), ms, ...extra };
+  solves.push(solve);
   saveSolves();
   renderSolves();
+  return solve;
 }
 
 function deleteSolve(id) {
@@ -512,6 +534,104 @@ function updateReady() {
   mainPads.reset();
 }
 
+// ── CONFIRM POP-UP ────────────────────────────────────────────────────────────
+// Resolves true for the right-hand (yes) button, false for the left one
+function ask(title, text, yesLabel, noLabel, tone) {
+  return new Promise(resolve => {
+    modalTitle.textContent = title;
+    modalText.textContent  = text;
+    modalYes.textContent   = yesLabel;
+    modalNo.textContent    = noLabel;
+    modalYes.className     = tone || '';
+    modal.classList.remove('hidden');
+    const done = (answer) => {
+      modal.classList.add('hidden');
+      modalYes.onclick = modalNo.onclick = null;
+      resolve(answer);
+    };
+    modalYes.onclick = () => done(true);
+    modalNo.onclick  = () => done(false);
+  });
+}
+
+// ── RESULT + PENALTY BUTTONS ──────────────────────────────────────────────────
+function lastSolve() {
+  return solves.find(s => s.id === lastSolveId) || null;
+}
+
+function showResult(s) {
+  timerText.textContent = fmt(shownMs(s));
+  const inspP = s.insp != null ? inspPenalty(s.insp) : null;
+  if (s.penalty === 'DNF' && inspP === 'DNF') {
+    setStatus(`DNF: inspected ${fmtSecs(s.insp)} sec, so it can't be a best time`, 'danger');
+  } else if (s.penalty === 'DNF') {
+    setStatus("DNF: the cube wasn't solved, so it can't be a best time", 'danger');
+  } else if (s.penalty === '+4') {
+    setStatus('+4 penalty: +2 for inspection and +2 for the cube', 'warn');
+  } else if (s.penalty === '+2' && inspP === '+2') {
+    setStatus(`+2 penalty added (inspected ${fmtSecs(s.insp)} sec)`, 'warn');
+  } else if (s.penalty === '+2') {
+    setStatus("+2 penalty added (the cube wasn't fully solved)", 'warn');
+  } else {
+    setStatus('');
+  }
+}
+
+// The buttons show under the last solve until the next one starts
+function updatePenaltyButtons() {
+  const s = lastSolve();
+  const show = !!s && !isDNF(s);
+  penaltyBtns.classList.toggle('hidden', !show);
+  plus2Btn.classList.toggle('hidden', plus2Added);
+}
+
+function clearLastSolve() {
+  lastSolveId = null;
+  plus2Added = false;
+  updatePenaltyButtons();
+}
+
+async function askKeepDNF(s) {
+  const keep = await ask(
+    'Keep this DNF in your history?',
+    'Keep it: the time stays in your charts and table with a DNF note. Exclude it: this solve is removed completely.',
+    'Keep in history', 'Exclude it');
+  if (!keep) {
+    deleteSolve(s.id);
+    setStatus('DNF: left out of your history', 'danger');
+  }
+}
+
+plus2Btn.addEventListener('click', async () => {
+  const s = lastSolve();
+  if (!s || isDNF(s) || plus2Added) return;
+  const ok = await ask(
+    'Add 2 seconds?',
+    `Use this if the cube wasn't fully solved when you stopped the timer. Your time becomes ${fmt(finalMs(s) + 2000)}.`,
+    'Add 2 seconds', 'Cancel', 'plus2');
+  if (!ok || lastSolve() !== s) return;
+  s.penalty = s.penalty === '+2' ? '+4' : '+2';
+  plus2Added = true;
+  saveSolves();
+  renderSolves();
+  showResult(s);
+});
+
+dnfBtn.addEventListener('click', async () => {
+  const s = lastSolve();
+  if (!s || isDNF(s)) return;
+  const ok = await ask(
+    'Make this solve a DNF?',
+    "Use this if you put the cube down before it was solved. A DNF can't be a best time.",
+    'Yes, DNF', 'Cancel', 'dnf');
+  if (!ok || lastSolve() !== s) return;
+  s.penalty = 'DNF';
+  saveSolves();
+  renderSolves();
+  showResult(s);
+  await askKeepDNF(s);
+});
+
 function nudgeStartButton() {
   startInspBtn.classList.remove('nudge');
   void startInspBtn.offsetWidth;   // restart the animation
@@ -529,6 +649,7 @@ function startInspection() {
   inspTimer.textContent = '0';
   inspWarn.textContent = '';
   setStatus('');
+  clearLastSolve();
 
   // Stack Mat swaps the Start Solve Timer button for the two hand pads
   const stack = settings.stackOn;
@@ -686,6 +807,7 @@ function startTimer(now = Date.now()) {
   lastTapAt = startTime;
   splits = [];
   setStatus('');
+  clearLastSolve();
   runPads.reset();
 
   runOverlay.classList.remove('hidden');
@@ -715,18 +837,16 @@ function stopTimer(now) {
   }
   pendingInsp = null;
 
-  timerText.textContent = fmt(elapsed + (extra.penalty === '+2' ? 2000 : 0));
-  if (extra.penalty === '+2') {
-    setStatus(`+2 penalty added (inspected ${fmtSecs(extra.insp)} sec)`, 'warn');
-  } else if (extra.penalty === 'DNF') {
-    setStatus(`DNF: inspected ${fmtSecs(extra.insp)} sec, so this one doesn't count`, 'danger');
-  } else {
-    setStatus('');
-  }
-
-  addSolve(elapsed, extra);
+  const solve = addSolve(elapsed, extra);
+  lastSolveId = solve.id;
+  plus2Added = false;
+  showResult(solve);
+  updatePenaltyButtons();
   updateReady();
   releaseWakeLock();
+
+  // A DNF from inspection gets the same keep-or-exclude choice
+  if (isDNF(solve)) askKeepDNF(solve);
 }
 
 // ── TAP DURING SOLVE (stage taps, then stop) ─────────────────────────────────

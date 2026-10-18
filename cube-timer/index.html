@@ -94,6 +94,10 @@
       <div id="timer-display">
         <span id="timer-text">0:00.00</span>
         <div id="status-note"></div>
+        <div id="penalty-btns" class="hidden">
+          <button id="plus2-btn" class="penalty-btn plus2">Add 2 seconds</button>
+          <button id="dnf-btn" class="penalty-btn dnf">DNF</button>
+        </div>
         <div id="hint">Hold to start</div>
         <button id="start-insp-btn" class="hidden">Start Inspection</button>
         <div id="main-pad-area" class="hidden">
@@ -147,6 +151,18 @@
     <div id="run-pads" class="pads side-pads hidden">
       <div class="pad left"><svg class="hand"><use href="#hand"/></svg></div>
       <div class="pad right"><svg class="hand"><use href="#hand"/></svg></div>
+    </div>
+  </div>
+
+  <!-- CONFIRM POP-UP -->
+  <div id="modal" class="hidden">
+    <div class="modal-card">
+      <div id="modal-title"></div>
+      <div id="modal-text"></div>
+      <div class="modal-btns">
+        <button id="modal-no"></button>
+        <button id="modal-yes"></button>
+      </div>
     </div>
   </div>
 
