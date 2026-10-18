@@ -6,7 +6,7 @@ let solves     = JSON.parse(localStorage.getItem('cubeSolves') || '[]');
 //   stages:  ms for each stage (Stage Practice), adds up to ms
 
 const DEFAULT_SETTINGS = {
-  stageOn: false, stageCount: 4,
+  stageOn: false, stageCount: 4, stageBeep: true,
   inspOn: false, voiceOn: true, voice1: 8, voice2: 12,
   stackOn: false,
 };
@@ -68,6 +68,8 @@ const mainPadsEl   = document.getElementById('main-pads');
 const stageToggle  = document.getElementById('stage-toggle');
 const stageCount   = document.getElementById('stage-count');
 const stageOptions = document.getElementById('stage-options');
+const stageSub     = document.getElementById('stage-sub');
+const beepToggle   = document.getElementById('beep-toggle');
 const inspToggle   = document.getElementById('insp-toggle');
 const inspOptions  = document.getElementById('insp-options');
 const voiceToggle  = document.getElementById('voice-toggle');
@@ -146,6 +148,47 @@ function primeSpeech() {
   const u = new SpeechSynthesisUtterance(' ');
   u.volume = 0;
   speechSynthesis.speak(u);
+}
+
+// ── BEEPS ─────────────────────────────────────────────────────────────────────
+// Short tones made by the browser (no sound files). Tablets only allow sound
+// after a tap, so the audio is switched on at the first finger lift.
+let audioCtx = null;
+function unlockAudio() {
+  if (!settings.stageOn || !settings.stageBeep) return;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return;
+  if (!audioCtx) audioCtx = new AC();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+document.addEventListener('pointerup', unlockAudio, true);
+document.addEventListener('touchend', unlockAudio, true);
+
+function tone(freq, start, length) {
+  const t    = audioCtx.currentTime + start;
+  const osc  = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'triangle';
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0.0001, t);
+  gain.gain.exponentialRampToValueAtTime(0.5, t + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + length);
+  osc.connect(gain).connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + length + 0.02);
+}
+function canBeep() {
+  return settings.stageOn && settings.stageBeep && audioCtx && audioCtx.state === 'running';
+}
+// One short beep for each stage tap
+function stageBeep() {
+  if (canBeep()) tone(1047, 0, 0.09);
+}
+// A rising two-note chirp when the last stage finishes the solve
+function doneBeep() {
+  if (!canBeep()) return;
+  tone(1047, 0, 0.08);
+  tone(1568, 0.09, 0.16);
 }
 
 // ── GHOST-CLICK SHIELD ───────────────────────────────────────────────────────
@@ -836,6 +879,7 @@ function stopTimer(now) {
     if (pendingInsp.penalty) extra.penalty = pendingInsp.penalty;
   }
   pendingInsp = null;
+  doneBeep();
 
   const solve = addSolve(elapsed, extra);
   lastSolveId = solve.id;
@@ -860,6 +904,7 @@ runOverlay.addEventListener('pointerdown', e => {
   if (settings.stageOn && splits.length < settings.stageCount - 1) {
     lastTapAt = now;
     splits.push(now - startTime);
+    stageBeep();
     renderRunSplits();
   } else if (!settings.stackOn) {
     lastTapAt = now;
@@ -884,15 +929,19 @@ document.addEventListener('pointerup',   onHoldEnd);
 document.addEventListener('pointercancel', onHoldEnd);
 
 // ── CLEAR ALL ─────────────────────────────────────────────────────────────────
-clearBtn.onclick = () => {
+clearBtn.onclick = async () => {
   if (solves.length === 0) return;
-  if (confirm('Delete all your solves?')) {
-    solves = [];
-    saveSolves();
-    renderSolves();
-    timerText.textContent = '0:00.00';
-    setStatus('');
-  }
+  const n = solves.length;
+  const ok = await ask(
+    'Clear all your solves?',
+    `This deletes all ${n} solve${n === 1 ? '' : 's'}, your charts and your best time on this device. It can't be undone.`,
+    'Clear all', 'Cancel', 'dnf');
+  if (!ok) return;
+  solves = [];
+  saveSolves();
+  renderSolves();
+  timerText.textContent = '0:00.00';
+  setStatus('');
 };
 
 // ── SETTINGS ──────────────────────────────────────────────────────────────────
@@ -902,6 +951,7 @@ function saveSettings() {
 
 function applySettings() {
   stageOptions.classList.toggle('hidden', !settings.stageOn);
+  stageSub.classList.toggle('hidden', !settings.stageOn);
   stageWrap.classList.toggle('hidden', !settings.stageOn);
   inspOptions.classList.toggle('hidden', !settings.inspOn);
   voiceOptions.classList.toggle('hidden', !settings.voiceOn);
@@ -933,6 +983,7 @@ function bindNumber(input, key, min, max) {
 
 bindToggle(stageToggle, 'stageOn');
 bindNumber(stageCount, 'stageCount', 1, 10);
+bindToggle(beepToggle, 'stageBeep');
 bindToggle(inspToggle, 'inspOn');
 bindToggle(voiceToggle, 'voiceOn');
 bindNumber(voice1Input, 'voice1', 1, 60);
