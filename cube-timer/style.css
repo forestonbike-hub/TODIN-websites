@@ -126,18 +126,20 @@ html, body {
   flex-shrink: 0;
   gap: 4px;
 }
-#best-label {
+#best-label, #avg-label {
   font-size: 0.65rem;
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
-#best-time {
+#avg-label { margin-top: 6px; }
+#best-time, #avg-time {
   font-size: 1.1rem;
   font-weight: bold;
   color: var(--accent);
   font-variant-numeric: tabular-nums;
 }
+#avg-time { color: var(--text); }
 
 /* ── SETTINGS ── */
 #settings {

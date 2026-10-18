@@ -40,6 +40,7 @@ const timerText    = document.getElementById('timer-text');
 const statusNote   = document.getElementById('status-note');
 const hint         = document.getElementById('hint');
 const bestTime     = document.getElementById('best-time');
+const avgTime      = document.getElementById('avg-time');
 const solvesList   = document.getElementById('solves-list');
 const holdOverlay  = document.getElementById('hold-overlay');
 const runOverlay   = document.getElementById('run-overlay');
@@ -424,9 +425,17 @@ function getBest(list = solves) {
   if (counted.length === 0) return null;
   return Math.min(...counted.map(finalMs));
 }
+// Mean of every solve that counts (penalties included, DNFs left out)
+function getAverage() {
+  const counted = solves.filter(s => !isDNF(s));
+  if (counted.length === 0) return null;
+  return Math.round(counted.reduce((sum, s) => sum + finalMs(s), 0) / counted.length);
+}
 function updateBestBar() {
   const b = getBest();
+  const a = getAverage();
   bestTime.textContent = b !== null ? fmt(b) : '--:--.--';
+  avgTime.textContent  = a !== null ? fmt(a) : '--:--.--';
 }
 
 // ── RENDER SOLVES ─────────────────────────────────────────────────────────────
