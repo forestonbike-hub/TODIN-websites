@@ -3,6 +3,7 @@ let solves     = JSON.parse(localStorage.getItem('cubeSolves') || '[]').map(upgr
 // solves[i] = { id, ms, plus?, dnf?, insp?, stages? }
 //   plus:   ms added as penalties (+2 from inspection, +2 or +0.2 from the buttons)
 //   dnf:    true for a DNF (from inspection or the DNF button)
+//   dnfCounts: true if a kept DNF should still count toward Best Time and Average
 //   insp:   inspection length in ms
 //   stages: ms for each stage (Stage Practice), adds up to ms
 
@@ -120,6 +121,8 @@ function fmtSecs(ms) {
 
 // ── SOLVE HELPERS ─────────────────────────────────────────────────────────────
 function isDNF(s)   { return !!s.dnf; }
+// Counts toward Best Time and Average: every solve except DNFs left out
+function counts(s)  { return !s.dnf || !!s.dnfCounts; }
 function finalMs(s) { return s.ms + (s.plus || 0); }
 // Added seconds as a badge label: 2000 -> "+2", 2200 -> "+2.2"
 function plusLabel(ms) { return '+' + ms / 1000; }
@@ -381,7 +384,7 @@ function drawChart() {
   // Dots
   times.forEach((t, i) => {
     const dnf    = isDNF(solves[i]);
-    const isBest = !dnf && t === best;
+    const isBest = counts(solves[i]) && t === best;
     ctx.beginPath();
     ctx.arc(px(i), py(t), isBest ? 5 : dnf ? 4 : 3, 0, Math.PI * 2);
     ctx.fillStyle = isBest ? '#ffe600' : dnf ? '#ff5252' : '#00e5ff';
@@ -431,13 +434,13 @@ function renderLegend() {
 
 // ── BEST TIME ─────────────────────────────────────────────────────────────────
 function getBest(list = solves) {
-  const counted = list.filter(s => !isDNF(s));
+  const counted = list.filter(counts);
   if (counted.length === 0) return null;
   return Math.min(...counted.map(finalMs));
 }
-// Mean of every solve that counts (penalties included, DNFs left out)
+// Mean of every solve that counts (penalties included, DNFs only if chosen to count)
 function getAverage() {
-  const counted = solves.filter(s => !isDNF(s));
+  const counted = solves.filter(counts);
   if (counted.length === 0) return null;
   return Math.round(counted.reduce((sum, s) => sum + finalMs(s), 0) / counted.length);
 }
@@ -452,7 +455,7 @@ function updateBestBar() {
 function timeWithBadge(s, className) {
   const wrap = document.createElement('span');
   const timeEl = document.createElement('span');
-  timeEl.className = className + (isDNF(s) ? ' dnf-time' : '');
+  timeEl.className = className + (counts(s) ? '' : ' dnf-time');
   timeEl.textContent = fmt(finalMs(s));
   wrap.appendChild(timeEl);
   const addBadge = (text, kind) => {
@@ -491,7 +494,7 @@ function renderSolveList() {
   [...solves].reverse().forEach((s, ri) => {
     const num = solves.length - ri;
     const row = document.createElement('div');
-    row.className = 'solve-row' + (!isDNF(s) && finalMs(s) === best ? ' best' : '');
+    row.className = 'solve-row' + (counts(s) && finalMs(s) === best ? ' best' : '');
 
     const numEl  = document.createElement('span');
     numEl.className = 'solve-num';
@@ -517,7 +520,7 @@ function renderStageTable() {
     return;
   }
 
-  const counted   = rows.filter(s => !isDNF(s));
+  const counted   = rows.filter(counts);
   const best      = getBest(rows);
   const stageBest = [];
   for (let i = 0; i < n; i++) {
@@ -541,13 +544,13 @@ function renderStageTable() {
   const body = table.createTBody();
   [...rows].reverse().forEach((s, ri) => {
     const tr = body.insertRow();
-    if (!isDNF(s) && finalMs(s) === best) tr.className = 'best';
+    if (counts(s) && finalMs(s) === best) tr.className = 'best';
 
     tr.insertCell().textContent = `#${rows.length - ri}`;
     s.stages.forEach((t, i) => {
       const td = tr.insertCell();
       td.textContent = fmtShort(t);
-      if (!isDNF(s) && t === stageBest[i]) {
+      if (counts(s) && t === stageBest[i]) {
         td.classList.add('stage-best');
         td.style.color = stageColor(i);
       }
@@ -635,6 +638,7 @@ function showResult(s) {
   if (inspP === '+2')    notes.push(`+2 for inspection (${fmtSecs(s.insp)} sec)`);
   if (fromButtons === 2000) notes.push('+2 added');
   if (fromButtons === 200)  notes.push('+0.2 added');
+  if (isDNF(s) && counts(s)) notes.push('counts toward Best Time and Average');
   setStatus(notes.join(' · '), isDNF(s) ? 'danger' : notes.length ? 'warn' : '');
 }
 
@@ -656,14 +660,26 @@ function clearLastSolve() {
   updatePenaltyButtons();
 }
 
+// After a DNF: first keep or exclude it, then (if kept) whether it counts
 async function askKeepDNF(s) {
   const keep = await ask(
     'Keep this DNF in your history?',
-    "Keep it: the time stays in your charts and table with a DNF note, but it never counts toward Best Time or Average. Exclude it: this solve is removed completely.",
+    'Keep it: the time shows in your table and charts with a DNF note. Exclude it: this solve is removed completely.',
     'Keep in history', 'Exclude it');
   if (!keep) {
     deleteSolve(s.id);
     setStatus('DNF: left out of your history', 'danger');
+    return;
+  }
+  const count = await ask(
+    'Count it toward Best Time and Average?',
+    'Yes: it counts like a normal solve. No: you still see it in your table and charts, but Best Time and Average leave it out.',
+    'Yes, count it', 'No, leave it out');
+  if (count && solves.includes(s)) {
+    s.dnfCounts = true;
+    saveSolves();
+    renderSolves();
+    if (lastSolve() === s) showResult(s);
   }
 }
 
@@ -691,7 +707,7 @@ dnfBtn.addEventListener('click', async () => {
   if (!s || isDNF(s)) return;
   const ok = await ask(
     'Make this solve a DNF?',
-    "Use this if you put the cube down before it was solved. A DNF never counts toward Best Time or Average.",
+    "Use this if you put the cube down before it was solved. Next you'll choose whether to keep it and whether it counts.",
     'Yes, DNF', 'Cancel', 'dnf');
   if (!ok || lastSolve() !== s) return;
   s.dnf = true;
