@@ -7,6 +7,7 @@
   --green: #00e676;
   --warn: #ffd600;
   --danger: #ff5252;
+  --purple: #b388ff;
   --text: #ffffff;
   --muted: #888;
 }
@@ -279,6 +280,8 @@ html, body {
 /* Penalty buttons shown after a solve */
 #penalty-btns {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 12px;
   margin-top: 14px;
 }
@@ -292,7 +295,8 @@ html, body {
   font-weight: 800;
   cursor: pointer;
 }
-.penalty-btn.plus2 { border: 2px solid #ffab00; color: #ffab00; }
+.penalty-btn.plus2  { border: 2px solid #ffab00; color: #ffab00; }
+.penalty-btn.plus02 { border: 2px solid var(--purple); color: var(--purple); }
 .penalty-btn.dnf   { border: 2px solid var(--danger); color: var(--danger); }
 .penalty-btn:active { opacity: 0.6; }
 
@@ -411,7 +415,8 @@ html, body {
   vertical-align: middle;
   letter-spacing: 0.03em;
 }
-.badge.plus2 { background: #ffab00; color: #000; }
+.badge.plus2  { background: #ffab00; color: #000; }
+.badge.plus02 { background: var(--purple); color: #000; }
 .badge.dnf   { background: var(--danger); color: #fff; }
 .dnf-time {
   color: var(--muted) !important;
@@ -728,7 +733,8 @@ html, body {
 .modal-btns button:active { opacity: 0.7; }
 #modal-no  { background: #333; color: var(--text); }
 #modal-yes { background: var(--accent); color: #00262b; }
-#modal-yes.plus2 { background: #ffab00; color: #000; }
+#modal-yes.plus2  { background: #ffab00; color: #000; }
+#modal-yes.plus02 { background: var(--purple); color: #000; }
 #modal-yes.dnf   { background: var(--danger); color: #fff; }
 
 /* Scrollbar styling */

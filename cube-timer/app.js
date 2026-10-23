@@ -1,9 +1,19 @@
 // ── STATE ─────────────────────────────────────────────────────────────────────
-let solves     = JSON.parse(localStorage.getItem('cubeSolves') || '[]');
-// solves[i] = { id, ms, penalty?, insp?, stages? }
-//   penalty: '+2', '+4' or 'DNF', from a long inspection and/or the buttons after a solve
-//   insp:    inspection length in ms
-//   stages:  ms for each stage (Stage Practice), adds up to ms
+let solves     = JSON.parse(localStorage.getItem('cubeSolves') || '[]').map(upgradeSolve);
+// solves[i] = { id, ms, plus?, dnf?, insp?, stages? }
+//   plus:   ms added as penalties (+2 from inspection, +2 or +0.2 from the buttons)
+//   dnf:    true for a DNF (from inspection or the DNF button)
+//   insp:   inspection length in ms
+//   stages: ms for each stage (Stage Practice), adds up to ms
+
+// Older saves kept penalties as one label: '+2', '+4' or 'DNF'
+function upgradeSolve(s) {
+  if (s.penalty === undefined) return s;
+  const { penalty, ...rest } = s;
+  if (penalty === 'DNF') rest.dnf = true;
+  else rest.plus = { '+2': 2000, '+4': 4000 }[penalty] || 0;
+  return rest;
+}
 
 const DEFAULT_SETTINGS = {
   stageOn: false, stageCount: 4, stageBeep: true,
@@ -29,7 +39,7 @@ let inspCalled    = [false, false];
 let pendingInsp   = null; // { ms, penalty } from this solve's inspection, until the solve is saved
 
 let lastSolveId   = null;  // the solve the +2 / DNF buttons apply to
-let plus2Added    = false; // the +2 button only works once per solve
+let buttonPlus    = 0;     // ms added with the +2 / +0.2 buttons (only one per solve)
 
 const STAGE_COLORS = ['#40c4ff', '#ff4fa3', '#00e676', '#ffd740', '#b388ff',
                       '#ff9100', '#ff5252', '#64ffda', '#eeff41', '#ffffff'];
@@ -81,6 +91,7 @@ const stackToggle  = document.getElementById('stack-toggle');
 
 const penaltyBtns  = document.getElementById('penalty-btns');
 const plus2Btn     = document.getElementById('plus2-btn');
+const plus02Btn    = document.getElementById('plus02-btn');
 const dnfBtn       = document.getElementById('dnf-btn');
 const modal        = document.getElementById('modal');
 const modalTitle   = document.getElementById('modal-title');
@@ -108,11 +119,10 @@ function fmtSecs(ms) {
 }
 
 // ── SOLVE HELPERS ─────────────────────────────────────────────────────────────
-const PENALTY_MS = { '+2': 2000, '+4': 4000 };
-function isDNF(s)   { return s.penalty === 'DNF'; }
-function finalMs(s) { return s.ms + (PENALTY_MS[s.penalty] || 0); }
-// The time to show and chart: DNFs keep their real time, with a DNF note
-function shownMs(s) { return isDNF(s) ? s.ms : finalMs(s); }
+function isDNF(s)   { return !!s.dnf; }
+function finalMs(s) { return s.ms + (s.plus || 0); }
+// Added seconds as a badge label: 2000 -> "+2", 2200 -> "+2.2"
+function plusLabel(ms) { return '+' + ms / 1000; }
 function inspPenalty(ms) {
   if (ms >= 17000) return 'DNF';
   if (ms >= 15000) return '+2';
@@ -342,7 +352,7 @@ function drawChart() {
   const h = 70;
   const { ctx, w } = prepCanvas(chartCanvas, h);
 
-  const times = solves.map(shownMs);
+  const times = solves.map(finalMs);
   if (times.length < 2) {
     chartHint.style.display = solves.length === 0 ? 'block' : 'none';
     return;
@@ -443,14 +453,17 @@ function timeWithBadge(s, className) {
   const wrap = document.createElement('span');
   const timeEl = document.createElement('span');
   timeEl.className = className + (isDNF(s) ? ' dnf-time' : '');
-  timeEl.textContent = fmt(shownMs(s));
+  timeEl.textContent = fmt(finalMs(s));
   wrap.appendChild(timeEl);
-  if (s.penalty) {
+  const addBadge = (text, kind) => {
     const badge = document.createElement('span');
-    badge.className = 'badge ' + (isDNF(s) ? 'dnf' : 'plus2');
-    badge.textContent = s.penalty;
+    badge.className = 'badge ' + kind;
+    badge.textContent = text;
     wrap.appendChild(badge);
-  }
+  };
+  // Orange for whole +2s, purple when a +0.2 is part of it
+  if (s.plus) addBadge(plusLabel(s.plus), s.plus % 2000 ? 'plus02' : 'plus2');
+  if (isDNF(s)) addBadge('DNF', 'dnf');
   return wrap;
 }
 
@@ -611,42 +624,42 @@ function lastSolve() {
   return solves.find(s => s.id === lastSolveId) || null;
 }
 
+// The line under the time, e.g. "+2 for inspection (15.6 sec) · +0.2 added"
 function showResult(s) {
-  timerText.textContent = fmt(shownMs(s));
+  timerText.textContent = fmt(finalMs(s));
   const inspP = s.insp != null ? inspPenalty(s.insp) : null;
-  if (s.penalty === 'DNF' && inspP === 'DNF') {
-    setStatus(`DNF: inspected ${fmtSecs(s.insp)} sec, so it can't be a best time`, 'danger');
-  } else if (s.penalty === 'DNF') {
-    setStatus("DNF: the cube wasn't solved, so it can't be a best time", 'danger');
-  } else if (s.penalty === '+4') {
-    setStatus('+4 penalty: +2 for inspection and +2 for the cube', 'warn');
-  } else if (s.penalty === '+2' && inspP === '+2') {
-    setStatus(`+2 penalty added (inspected ${fmtSecs(s.insp)} sec)`, 'warn');
-  } else if (s.penalty === '+2') {
-    setStatus("+2 penalty added (the cube wasn't fully solved)", 'warn');
-  } else {
-    setStatus('');
-  }
+  const fromButtons = (s.plus || 0) - (inspP === '+2' ? 2000 : 0);
+  const notes = [];
+  if (inspP === 'DNF')   notes.push(`DNF: inspected ${fmtSecs(s.insp)} sec`);
+  else if (isDNF(s))     notes.push("DNF: the cube wasn't solved");
+  if (inspP === '+2')    notes.push(`+2 for inspection (${fmtSecs(s.insp)} sec)`);
+  if (fromButtons === 2000) notes.push('+2 added');
+  if (fromButtons === 200)  notes.push('+0.2 added');
+  setStatus(notes.join(' · '), isDNF(s) ? 'danger' : notes.length ? 'warn' : '');
 }
 
-// The buttons show under the last solve until the next one starts
+// The buttons show under the last solve until the next one starts.
+// +2 and +0.2 are one-or-the-other; DNF stays available until it's used.
 function updatePenaltyButtons() {
   const s = lastSolve();
-  const show = !!s && !isDNF(s);
-  penaltyBtns.classList.toggle('hidden', !show);
-  plus2Btn.classList.toggle('hidden', plus2Added);
+  const canPlus = !!s && !buttonPlus;
+  const canDnf  = !!s && !isDNF(s);
+  plus2Btn.classList.toggle('hidden', !canPlus);
+  plus02Btn.classList.toggle('hidden', !canPlus);
+  dnfBtn.classList.toggle('hidden', !canDnf);
+  penaltyBtns.classList.toggle('hidden', !canPlus && !canDnf);
 }
 
 function clearLastSolve() {
   lastSolveId = null;
-  plus2Added = false;
+  buttonPlus = 0;
   updatePenaltyButtons();
 }
 
 async function askKeepDNF(s) {
   const keep = await ask(
     'Keep this DNF in your history?',
-    'Keep it: the time stays in your charts and table with a DNF note. Exclude it: this solve is removed completely.',
+    "Keep it: the time stays in your charts and table with a DNF note, but it never counts toward Best Time or Average. Exclude it: this solve is removed completely.",
     'Keep in history', 'Exclude it');
   if (!keep) {
     deleteSolve(s.id);
@@ -654,30 +667,34 @@ async function askKeepDNF(s) {
   }
 }
 
-plus2Btn.addEventListener('click', async () => {
+async function addButtonPenalty(ms) {
   const s = lastSolve();
-  if (!s || isDNF(s) || plus2Added) return;
+  if (!s || buttonPlus) return;
+  const secs = ms / 1000;
   const ok = await ask(
-    'Add 2 seconds?',
-    `Use this if the cube wasn't fully solved when you stopped the timer. Your time becomes ${fmt(finalMs(s) + 2000)}.`,
-    'Add 2 seconds', 'Cancel', 'plus2');
-  if (!ok || lastSolve() !== s) return;
-  s.penalty = s.penalty === '+2' ? '+4' : '+2';
-  plus2Added = true;
+    `Add ${secs} seconds?`,
+    `Your time becomes ${fmt(finalMs(s) + ms)}. A solve can get +2 or +0.2, not both.`,
+    `Add ${secs} seconds`, 'Cancel', ms === 2000 ? 'plus2' : 'plus02');
+  if (!ok || lastSolve() !== s || buttonPlus) return;
+  s.plus = (s.plus || 0) + ms;
+  buttonPlus = ms;
   saveSolves();
   renderSolves();
   showResult(s);
-});
+}
+
+plus2Btn.addEventListener('click', () => addButtonPenalty(2000));
+plus02Btn.addEventListener('click', () => addButtonPenalty(200));
 
 dnfBtn.addEventListener('click', async () => {
   const s = lastSolve();
   if (!s || isDNF(s)) return;
   const ok = await ask(
     'Make this solve a DNF?',
-    "Use this if you put the cube down before it was solved. A DNF can't be a best time.",
+    "Use this if you put the cube down before it was solved. A DNF never counts toward Best Time or Average.",
     'Yes, DNF', 'Cancel', 'dnf');
   if (!ok || lastSolve() !== s) return;
-  s.penalty = 'DNF';
+  s.dnf = true;
   saveSolves();
   renderSolves();
   showResult(s);
@@ -885,14 +902,15 @@ function stopTimer(now) {
   }
   if (pendingInsp) {
     extra.insp = pendingInsp.ms;
-    if (pendingInsp.penalty) extra.penalty = pendingInsp.penalty;
+    if (pendingInsp.penalty === '+2')  extra.plus = 2000;
+    if (pendingInsp.penalty === 'DNF') extra.dnf = true;
   }
   pendingInsp = null;
   doneBeep();
 
   const solve = addSolve(elapsed, extra);
   lastSolveId = solve.id;
-  plus2Added = false;
+  buttonPlus = 0;
   showResult(solve);
   updatePenaltyButtons();
   updateReady();
