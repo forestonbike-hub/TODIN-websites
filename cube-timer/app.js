@@ -61,6 +61,8 @@ const runHint      = document.getElementById('run-hint');
 const clearBtn     = document.getElementById('clear-btn');
 const chartCanvas  = document.getElementById('progress-chart');
 const chartHint    = document.getElementById('chart-hint');
+const progressTitle = document.getElementById('progress-title');
+const solvesTitle  = document.getElementById('solves-title');
 const stageWrap    = document.getElementById('stage-chart-wrap');
 const stageCanvas  = document.getElementById('stage-chart');
 const stageHint    = document.getElementById('stage-chart-hint');
@@ -134,6 +136,11 @@ function inspPenalty(ms) {
 // Solves recorded with the current number of stages
 function stageSolves() {
   return solves.filter(s => s.stages && s.stages.length === settings.stageCount);
+}
+// Stage Practice solves and regular solves are kept apart. The chart, Best Time,
+// Average and the solve list only show (and calculate from) the active set.
+function activeSolves() {
+  return settings.stageOn ? stageSolves() : solves.filter(s => !s.stages);
 }
 
 // ── WAKE LOCK ─────────────────────────────────────────────────────────────────
@@ -349,21 +356,22 @@ function strokeLine(ctx, times, px, py, color, width) {
   ctx.stroke();
 }
 
-// Total time for every solve in history. Kept DNFs show as red dots and never
-// count as the best (yellow) dot.
+// Total time for every solve in the active set. Kept DNFs show as red dots, and
+// only solves that count can be the best (yellow) dot.
 function drawChart() {
   const h = 70;
   const { ctx, w } = prepCanvas(chartCanvas, h);
 
-  const times = solves.map(finalMs);
+  const list  = activeSolves();
+  const times = list.map(finalMs);
   if (times.length < 2) {
-    chartHint.style.display = solves.length === 0 ? 'block' : 'none';
+    chartHint.style.display = list.length === 0 ? 'block' : 'none';
     return;
   }
   chartHint.style.display = 'none';
 
   const { px, py } = chartScale([times], w, h);
-  const best = getBest();
+  const best = getBest(list);
 
   // Gradient fill
   const grad = ctx.createLinearGradient(0, 8, 0, h);
@@ -383,8 +391,8 @@ function drawChart() {
 
   // Dots
   times.forEach((t, i) => {
-    const dnf    = isDNF(solves[i]);
-    const isBest = counts(solves[i]) && t === best;
+    const dnf    = isDNF(list[i]);
+    const isBest = counts(list[i]) && t === best;
     ctx.beginPath();
     ctx.arc(px(i), py(t), isBest ? 5 : dnf ? 4 : 3, 0, Math.PI * 2);
     ctx.fillStyle = isBest ? '#ffe600' : dnf ? '#ff5252' : '#00e5ff';
@@ -433,14 +441,14 @@ function renderLegend() {
 }
 
 // ── BEST TIME ─────────────────────────────────────────────────────────────────
-function getBest(list = solves) {
+function getBest(list = activeSolves()) {
   const counted = list.filter(counts);
   if (counted.length === 0) return null;
   return Math.min(...counted.map(finalMs));
 }
 // Mean of every solve that counts (penalties included, DNFs only if chosen to count)
-function getAverage() {
-  const counted = solves.filter(counts);
+function getAverage(list = activeSolves()) {
+  const counted = list.filter(counts);
   if (counted.length === 0) return null;
   return Math.round(counted.reduce((sum, s) => sum + finalMs(s), 0) / counted.length);
 }
@@ -479,6 +487,11 @@ function deleteButton(id) {
 }
 
 function renderSolves() {
+  // Say which set of solves is on screen
+  const set = settings.stageOn ? `Stage Practice · ${settings.stageCount} stages` : '';
+  progressTitle.textContent = set ? `Progress · ${set}` : 'Progress';
+  solvesTitle.textContent   = set ? `Solves · ${set}` : 'Solves';
+
   drawChart();
   drawStageChart();
   solvesList.innerHTML = '';
@@ -489,10 +502,11 @@ function renderSolves() {
 }
 
 function renderSolveList() {
-  const best = getBest();
+  const list = activeSolves();
+  const best = getBest(list);
   // Show newest first
-  [...solves].reverse().forEach((s, ri) => {
-    const num = solves.length - ri;
+  [...list].reverse().forEach((s, ri) => {
+    const num = list.length - ri;
     const row = document.createElement('div');
     row.className = 'solve-row' + (counts(s) && finalMs(s) === best ? ' best' : '');
 
@@ -972,15 +986,22 @@ document.addEventListener('pointerup',   onHoldEnd);
 document.addEventListener('pointercancel', onHoldEnd);
 
 // ── CLEAR ALL ─────────────────────────────────────────────────────────────────
+// Clears only the set on screen (regular solves, or Stage Practice solves with
+// the current number of stages); the other set is left alone
 clearBtn.onclick = async () => {
-  if (solves.length === 0) return;
-  const n = solves.length;
+  const list = activeSolves();
+  if (list.length === 0) return;
+  const n = list.length;
+  const plural = n === 1 ? '' : 's';
+  const which = settings.stageOn
+    ? `${n} Stage Practice solve${plural} with ${settings.stageCount} stages`
+    : `${n} regular solve${plural}`;
   const ok = await ask(
-    'Clear all your solves?',
-    `This deletes all ${n} solve${n === 1 ? '' : 's'}, your charts and your best time on this device. It can't be undone.`,
+    settings.stageOn ? 'Clear your Stage Practice solves?' : 'Clear your solves?',
+    `This deletes your ${which} on this device, along with their chart, best time and average. Your other solves stay. It can't be undone.`,
     'Clear all', 'Cancel', 'dnf');
   if (!ok) return;
-  solves = [];
+  solves = solves.filter(s => !list.includes(s));
   saveSolves();
   renderSolves();
   timerText.textContent = '0:00.00';
