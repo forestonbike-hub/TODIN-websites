@@ -1,27 +1,52 @@
 // ── STATE ─────────────────────────────────────────────────────────────────────
 let solves     = JSON.parse(localStorage.getItem('cubeSolves') || '[]').map(upgradeSolve);
-// solves[i] = { id, ms, plus?, dnf?, insp?, stages? }
+// solves[i] = { id, ms, folder, plus?, dnf?, insp?, stages? }
+//   folder: which puzzle folder it belongs to ('2x2', '3x3', ... 'pyraminx')
 //   plus:   ms added as penalties (+2 from inspection, +2 or +0.2 from the buttons)
 //   dnf:    true for a DNF (from inspection or the DNF button)
 //   dnfCounts: true if a kept DNF should still count toward Best Time and Average
 //   insp:   inspection length in ms
 //   stages: ms for each stage (Stage Practice), adds up to ms
 
-// Older saves kept penalties as one label: '+2', '+4' or 'DNF'
+// Older saves kept penalties as one label ('+2', '+4' or 'DNF') and had no
+// folders; every solve from before folders belongs to 3x3
 function upgradeSolve(s) {
-  if (s.penalty === undefined) return s;
-  const { penalty, ...rest } = s;
-  if (penalty === 'DNF') rest.dnf = true;
-  else rest.plus = { '+2': 2000, '+4': 4000 }[penalty] || 0;
-  return rest;
+  const out = { ...s };
+  if (out.penalty !== undefined) {
+    if (out.penalty === 'DNF') out.dnf = true;
+    else out.plus = { '+2': 2000, '+4': 4000 }[out.penalty] || 0;
+    delete out.penalty;
+  }
+  if (!out.folder) out.folder = '3x3';
+  return out;
 }
+
+// ── FOLDERS ───────────────────────────────────────────────────────────────────
+const FOLDERS = [
+  { id: '2x2', label: '2x2' },
+  { id: '3x3', label: '3x3' },
+  { id: '4x4', label: '4x4' },
+  { id: '5x5', label: '5x5' },
+  { id: 'pyraminx', label: 'Pyraminx' },
+];
+// Opens in the folder used last (3x3 the first time)
+let folder = localStorage.getItem('cubeFolder');
+if (!FOLDERS.some(f => f.id === folder)) folder = '3x3';
+const folderLabel = () => FOLDERS.find(f => f.id === folder).label;
 
 const DEFAULT_SETTINGS = {
   stageOn: false, stageCount: 4, stageBeep: true,
   inspOn: false, voiceOn: true, voice1: 8, voice2: 12,
   stackOn: false,
 };
-let settings = { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem('cubeSettings') || '{}') };
+// Each folder keeps its own settings. Before folders there was one settings
+// object, which becomes the 3x3 folder's settings.
+let folderSettings = JSON.parse(localStorage.getItem('cubeFolderSettings') || 'null')
+  || { '3x3': JSON.parse(localStorage.getItem('cubeSettings') || '{}') };
+function settingsFor(id) {
+  return { ...DEFAULT_SETTINGS, ...(folderSettings[id] || {}) };
+}
+let settings = settingsFor(folder);
 
 let timerInterval = null;
 let startTime     = null;
@@ -61,6 +86,7 @@ const runHint      = document.getElementById('run-hint');
 const clearBtn     = document.getElementById('clear-btn');
 const chartCanvas  = document.getElementById('progress-chart');
 const chartHint    = document.getElementById('chart-hint');
+const folderRow    = document.getElementById('folder-row');
 const progressTitle = document.getElementById('progress-title');
 const solvesTitle  = document.getElementById('solves-title');
 const stageWrap    = document.getElementById('stage-chart-wrap');
@@ -133,14 +159,18 @@ function inspPenalty(ms) {
   if (ms >= 15000) return '+2';
   return null;
 }
-// Solves recorded with the current number of stages
-function stageSolves() {
-  return solves.filter(s => s.stages && s.stages.length === settings.stageCount);
+function folderSolves() {
+  return solves.filter(s => s.folder === folder);
 }
-// Stage Practice solves and regular solves are kept apart. The chart, Best Time,
-// Average and the solve list only show (and calculate from) the active set.
+// This folder's solves recorded with the current number of stages
+function stageSolves() {
+  return folderSolves().filter(s => s.stages && s.stages.length === settings.stageCount);
+}
+// Inside a folder, Stage Practice solves and regular solves are kept apart. The
+// chart, Best Time, Average and the solve list only show (and calculate from)
+// the active set.
 function activeSolves() {
-  return settings.stageOn ? stageSolves() : solves.filter(s => !s.stages);
+  return settings.stageOn ? stageSolves() : folderSolves().filter(s => !s.stages);
 }
 
 // ── WAKE LOCK ─────────────────────────────────────────────────────────────────
@@ -487,10 +517,10 @@ function deleteButton(id) {
 }
 
 function renderSolves() {
-  // Say which set of solves is on screen
-  const set = settings.stageOn ? `Stage Practice · ${settings.stageCount} stages` : '';
-  progressTitle.textContent = set ? `Progress · ${set}` : 'Progress';
-  solvesTitle.textContent   = set ? `Solves · ${set}` : 'Solves';
+  // Say which folder and set of solves is on screen
+  const set = settings.stageOn ? ` · Stage Practice · ${settings.stageCount} stages` : '';
+  progressTitle.textContent = `${folderLabel()} Progress${set}`;
+  solvesTitle.textContent   = `${folderLabel()} Solves${set}`;
 
   drawChart();
   drawStageChart();
@@ -584,7 +614,7 @@ function saveSolves() {
 }
 
 function addSolve(ms, extra) {
-  const solve = { id: Date.now(), ms, ...extra };
+  const solve = { id: Date.now(), ms, folder, ...extra };
   solves.push(solve);
   saveSolves();
   renderSolves();
@@ -986,19 +1016,19 @@ document.addEventListener('pointerup',   onHoldEnd);
 document.addEventListener('pointercancel', onHoldEnd);
 
 // ── CLEAR ALL ─────────────────────────────────────────────────────────────────
-// Clears only the set on screen (regular solves, or Stage Practice solves with
-// the current number of stages); the other set is left alone
+// Clears only what's on screen: this folder's regular solves, or its Stage
+// Practice solves with the current number of stages. Everything else stays.
 clearBtn.onclick = async () => {
   const list = activeSolves();
   if (list.length === 0) return;
   const n = list.length;
   const plural = n === 1 ? '' : 's';
   const which = settings.stageOn
-    ? `${n} Stage Practice solve${plural} with ${settings.stageCount} stages`
-    : `${n} regular solve${plural}`;
+    ? `${n} ${folderLabel()} Stage Practice solve${plural} with ${settings.stageCount} stages`
+    : `${n} regular ${folderLabel()} solve${plural}`;
   const ok = await ask(
-    settings.stageOn ? 'Clear your Stage Practice solves?' : 'Clear your solves?',
-    `This deletes your ${which} on this device, along with their chart, best time and average. Your other solves stay. It can't be undone.`,
+    `Clear your ${folderLabel()} ${settings.stageOn ? 'Stage Practice ' : ''}solves?`,
+    `This deletes your ${which} on this device, along with ${n === 1 ? 'its' : 'their'} chart, best time and average. Your other solves stay. It can't be undone.`,
     'Clear all', 'Cancel', 'dnf');
   if (!ok) return;
   solves = solves.filter(s => !list.includes(s));
@@ -1009,8 +1039,10 @@ clearBtn.onclick = async () => {
 };
 
 // ── SETTINGS ──────────────────────────────────────────────────────────────────
+// Saved under the current folder only
 function saveSettings() {
-  localStorage.setItem('cubeSettings', JSON.stringify(settings));
+  folderSettings[folder] = settings;
+  localStorage.setItem('cubeFolderSettings', JSON.stringify(folderSettings));
 }
 
 function applySettings() {
@@ -1024,7 +1056,17 @@ function applySettings() {
   updateReady();
 }
 
+// Every settings control, so they can all be refreshed when the folder changes
+const boundInputs = [];
+function refreshSettingsUI() {
+  boundInputs.forEach(({ input, key, isToggle }) => {
+    if (isToggle) input.checked = settings[key];
+    else input.value = settings[key];
+  });
+}
+
 function bindToggle(input, key) {
+  boundInputs.push({ input, key, isToggle: true });
   input.checked = settings[key];
   input.addEventListener('change', () => {
     settings[key] = input.checked;
@@ -1035,6 +1077,7 @@ function bindToggle(input, key) {
 
 // Whole numbers only; anything out of range snaps back to the last good value
 function bindNumber(input, key, min, max) {
+  boundInputs.push({ input, key, isToggle: false });
   input.value = settings[key];
   input.addEventListener('change', () => {
     const n = Math.round(Number(input.value));
@@ -1054,6 +1097,34 @@ bindNumber(voice1Input, 'voice1', 1, 60);
 bindNumber(voice2Input, 'voice2', 1, 60);
 bindToggle(stackToggle, 'stackOn');
 
+// ── FOLDER BUTTONS ────────────────────────────────────────────────────────────
+function renderFolderButtons() {
+  folderRow.innerHTML = '';
+  FOLDERS.forEach(f => {
+    const btn = document.createElement('button');
+    btn.className = 'folder-btn' + (f.id === folder ? ' active' : '');
+    btn.textContent = f.label;
+    btn.setAttribute('aria-pressed', f.id === folder);
+    btn.onclick = () => switchFolder(f.id);
+    folderRow.appendChild(btn);
+  });
+}
+
+// A new folder brings its own solves, charts, stats and settings
+function switchFolder(id) {
+  if (id === folder || isRunning || isInspecting) return;
+  if (document.activeElement) document.activeElement.blur();
+  folder = id;
+  localStorage.setItem('cubeFolder', folder);
+  settings = settingsFor(folder);
+  refreshSettingsUI();
+  clearLastSolve();
+  timerText.textContent = '0:00.00';
+  setStatus('');
+  renderFolderButtons();
+  applySettings();
+}
+
 // ── BLOCK LONG-PRESS CONTEXT MENU ────────────────────────────────────────────
 document.addEventListener('contextmenu', e => e.preventDefault());
 
@@ -1061,4 +1132,7 @@ document.addEventListener('contextmenu', e => e.preventDefault());
 window.addEventListener('resize', () => { drawChart(); drawStageChart(); });
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
+// Save once so older solves keep their new 3x3 folder tag
+saveSolves();
+renderFolderButtons();
 applySettings();
