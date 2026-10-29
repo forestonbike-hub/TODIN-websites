@@ -119,6 +119,53 @@ html, body {
   padding: 8px 0 4px;
 }
 
+/* All / Stage On / Stage Off: work like radio buttons, one lit at a time */
+#view-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+.view-btn {
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 38px;
+  padding: 0 6px;
+  background: transparent;
+  border: 2px solid #3a3a3a;
+  border-radius: 19px;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}
+/* Radio dot: hollow when off, filled when on */
+.view-btn::before {
+  content: '';
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+}
+.view-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #00262b;
+}
+.view-btn.active::before { background: currentColor; }
+.view-btn:active { opacity: 0.7; }
+/* Phone width: drop the dot so the labels fit */
+@media (max-width: 520px) {
+  .view-btn { padding: 0 3px; font-size: 0.75rem; }
+  .view-btn::before { display: none; }
+}
+
 #stage-chart-wrap { margin: 8px 16px 0; }
 .chart-head {
   display: flex;
@@ -501,6 +548,7 @@ html, body {
 .stage-table tr.best td:last-child  { box-shadow: inset -2px 2px 0 var(--accent), inset 0 -2px 0 var(--accent); }
 .stage-table tr.best td.total { color: var(--accent); }
 .stage-table td.stage-best { font-weight: bold; }
+.stage-table td.no-stage { color: #555; }
 .stage-empty {
   color: #555;
   text-align: center;

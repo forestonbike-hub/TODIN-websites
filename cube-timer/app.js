@@ -38,7 +38,13 @@ const DEFAULT_SETTINGS = {
   stageOn: false, stageCount: 4, stageBeep: true,
   inspOn: false, voiceOn: true, voice1: 8, voice2: 12,
   stackOn: false,
+  view: 'all',   // which solves the chart, stats and table show: 'all', 'on' or 'off'
 };
+const VIEWS = [
+  { id: 'all', label: 'All' },
+  { id: 'on',  label: 'Stage On' },
+  { id: 'off', label: 'Stage Off' },
+];
 // Each folder keeps its own settings. Before folders there was one settings
 // object, which becomes the 3x3 folder's settings.
 let folderSettings = JSON.parse(localStorage.getItem('cubeFolderSettings') || 'null')
@@ -87,6 +93,7 @@ const clearBtn     = document.getElementById('clear-btn');
 const chartCanvas  = document.getElementById('progress-chart');
 const chartHint    = document.getElementById('chart-hint');
 const folderRow    = document.getElementById('folder-row');
+const viewRow      = document.getElementById('view-row');
 const progressTitle = document.getElementById('progress-title');
 const solvesTitle  = document.getElementById('solves-title');
 const stageWrap    = document.getElementById('stage-chart-wrap');
@@ -166,12 +173,15 @@ function folderSolves() {
 function stageSolves() {
   return folderSolves().filter(s => s.stages && s.stages.length === settings.stageCount);
 }
-// Inside a folder, Stage Practice solves and regular solves are kept apart. The
-// chart, Best Time, Average and the solve list only show (and calculate from)
-// the active set.
-function activeSolves() {
-  return settings.stageOn ? stageSolves() : folderSolves().filter(s => !s.stages);
+// The All / Stage On / Stage Off buttons pick which of this folder's solves the
+// Progress chart, Best Time, Average and the solve table show (and calculate from)
+function viewSolves() {
+  const list = folderSolves();
+  if (settings.view === 'on')  return list.filter(s => s.stages);
+  if (settings.view === 'off') return list.filter(s => !s.stages);
+  return list;
 }
+const viewLabel = () => VIEWS.find(v => v.id === settings.view).label;
 
 // ── WAKE LOCK ─────────────────────────────────────────────────────────────────
 async function requestWakeLock() {
@@ -392,7 +402,7 @@ function drawChart() {
   const h = 70;
   const { ctx, w } = prepCanvas(chartCanvas, h);
 
-  const list  = activeSolves();
+  const list  = viewSolves();
   const times = list.map(finalMs);
   if (times.length < 2) {
     chartHint.style.display = list.length === 0 ? 'block' : 'none';
@@ -471,13 +481,13 @@ function renderLegend() {
 }
 
 // ── BEST TIME ─────────────────────────────────────────────────────────────────
-function getBest(list = activeSolves()) {
+function getBest(list = viewSolves()) {
   const counted = list.filter(counts);
   if (counted.length === 0) return null;
   return Math.min(...counted.map(finalMs));
 }
 // Mean of every solve that counts (penalties included, DNFs only if chosen to count)
-function getAverage(list = activeSolves()) {
+function getAverage(list = viewSolves()) {
   const counted = list.filter(counts);
   if (counted.length === 0) return null;
   return Math.round(counted.reduce((sum, s) => sum + finalMs(s), 0) / counted.length);
@@ -518,21 +528,40 @@ function deleteButton(id) {
 
 function renderSolves() {
   // Say which folder and set of solves is on screen
-  const set = settings.stageOn ? ` · Stage Practice · ${settings.stageCount} stages` : '';
-  progressTitle.textContent = `${folderLabel()} Progress${set}`;
-  solvesTitle.textContent   = `${folderLabel()} Solves${set}`;
+  progressTitle.textContent = `${folderLabel()} Progress`;
+  solvesTitle.textContent   = `${folderLabel()} Solves · ${viewLabel()}`;
+  renderViewButtons();
 
   drawChart();
   drawStageChart();
   solvesList.innerHTML = '';
-  if (settings.stageOn) renderStageTable();
-  else renderSolveList();
+  // Stage columns whenever any shown solve has stage times; a plain list otherwise
+  const list = viewSolves();
+  if (settings.view === 'on' || list.some(s => s.stages)) renderStageTable(list);
+  else renderSolveList(list);
   updateBestBar();
   updatePenaltyButtons();
 }
 
-function renderSolveList() {
-  const list = activeSolves();
+function renderViewButtons() {
+  viewRow.innerHTML = '';
+  VIEWS.forEach(v => {
+    const btn = document.createElement('button');
+    btn.className = 'view-btn' + (v.id === settings.view ? ' active' : '');
+    btn.textContent = v.label;
+    btn.setAttribute('role', 'radio');
+    btn.setAttribute('aria-checked', v.id === settings.view);
+    btn.onclick = () => {
+      if (settings.view === v.id) return;
+      settings.view = v.id;
+      saveSettings();
+      renderSolves();
+    };
+    viewRow.appendChild(btn);
+  });
+}
+
+function renderSolveList(list) {
   const best = getBest(list);
   // Show newest first
   [...list].reverse().forEach((s, ri) => {
@@ -549,26 +578,30 @@ function renderSolveList() {
   });
 }
 
-// Stage Practice: one row per solve, one column per stage, then the total
-function renderStageTable() {
-  const n    = settings.stageCount;
-  const rows = stageSolves();
+// One row per solve, one column per stage, then the total. Solves with fewer
+// stages (or none, from Stage Practice being off) show a dash in those columns.
+function renderStageTable(rows) {
   if (rows.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'stage-empty';
+    const count = settings.stageCount;
     const how = settings.stackOn
-      ? `tap the screen after each stage, and put both hands on the pads when Stage ${n} is done`
-      : `tap the screen each time you finish a stage (${n} taps in all)`;
-    empty.textContent = `No stage solves yet. Start a solve, then ${how}.`;
+      ? `tap the screen after each stage, and put both hands on the pads when Stage ${count} is done`
+      : `tap the screen each time you finish a stage (${count} taps in all)`;
+    empty.textContent = settings.stageOn
+      ? `No stage solves yet. Start a solve, then ${how}.`
+      : 'No Stage Practice solves yet. Turn on Stage Practice to record some.';
     solvesList.appendChild(empty);
     return;
   }
 
+  const n         = Math.max(...rows.map(s => s.stages ? s.stages.length : 0));
   const counted   = rows.filter(counts);
   const best      = getBest(rows);
   const stageBest = [];
   for (let i = 0; i < n; i++) {
-    stageBest.push(counted.length ? Math.min(...counted.map(s => s.stages[i])) : null);
+    const times = counted.filter(s => s.stages && s.stages.length > i).map(s => s.stages[i]);
+    stageBest.push(times.length ? Math.min(...times) : null);
   }
 
   const table = document.createElement('table');
@@ -591,14 +624,20 @@ function renderStageTable() {
     if (counts(s) && finalMs(s) === best) tr.className = 'best';
 
     tr.insertCell().textContent = `#${rows.length - ri}`;
-    s.stages.forEach((t, i) => {
+    for (let i = 0; i < n; i++) {
       const td = tr.insertCell();
+      const t  = s.stages && s.stages[i];
+      if (t === undefined || t === null) {
+        td.textContent = '–';
+        td.className = 'no-stage';
+        continue;
+      }
       td.textContent = fmtShort(t);
       if (counts(s) && t === stageBest[i]) {
         td.classList.add('stage-best');
         td.style.color = stageColor(i);
       }
-    });
+    }
 
     const total = tr.insertCell();
     total.className = 'total';
@@ -1016,19 +1055,17 @@ document.addEventListener('pointerup',   onHoldEnd);
 document.addEventListener('pointercancel', onHoldEnd);
 
 // ── CLEAR ALL ─────────────────────────────────────────────────────────────────
-// Clears only what's on screen: this folder's regular solves, or its Stage
-// Practice solves with the current number of stages. Everything else stays.
+// Clears only what's on screen: this folder's solves for the selected
+// All / Stage On / Stage Off button. Other folders always stay.
 clearBtn.onclick = async () => {
-  const list = activeSolves();
+  const list = viewSolves();
   if (list.length === 0) return;
   const n = list.length;
   const plural = n === 1 ? '' : 's';
-  const which = settings.stageOn
-    ? `${n} ${folderLabel()} Stage Practice solve${plural} with ${settings.stageCount} stages`
-    : `${n} regular ${folderLabel()} solve${plural}`;
+  const kind = { all: '', on: ' Stage Practice', off: ' regular' }[settings.view];
   const ok = await ask(
-    `Clear your ${folderLabel()} ${settings.stageOn ? 'Stage Practice ' : ''}solves?`,
-    `This deletes your ${which} on this device, along with ${n === 1 ? 'its' : 'their'} chart, best time and average. Your other solves stay. It can't be undone.`,
+    `Clear your ${folderLabel()}${kind} solves?`,
+    `This deletes your ${n} ${folderLabel()}${kind} solve${plural} on this device, along with ${n === 1 ? 'its' : 'their'} chart, best time and average. ${settings.view === 'all' ? 'Other folders stay' : 'Your other solves stay'}. It can't be undone.`,
     'Clear all', 'Cancel', 'dnf');
   if (!ok) return;
   solves = solves.filter(s => !list.includes(s));
