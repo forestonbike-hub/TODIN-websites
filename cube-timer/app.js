@@ -531,8 +531,28 @@ function deleteButton(id) {
   const del = document.createElement('button');
   del.className = 'solve-del';
   del.textContent = '✕';
-  del.onclick = () => deleteSolve(id);
+  del.onclick = () => {
+    const s = solves.find(x => x.id === id);
+    if (s && s.manual) confirmDeleteManual(s);
+    else deleteSolve(id);
+  };
   return del;
+}
+
+// Typed-in times can't be timed again, so ask before one is deleted
+async function confirmDeleteManual(s) {
+  const ok = await ask(
+    `Delete ${fmt(finalMs(s))}?`,
+    'This removes this typed-in time from your list, chart, Best Time and Average. It can\'t be undone.',
+    'Delete it', 'Keep it', 'dnf');
+  if (!ok || !solves.includes(s)) return;
+  if (editingId === s.id) editingId = null;
+  if (lastSolve() === s) {
+    clearLastSolve();
+    timerText.textContent = '0:00.00';
+    setStatus('');
+  }
+  deleteSolve(s.id);
 }
 
 // Pen button on typed-in (Manual) solves: opens the time for fixing
