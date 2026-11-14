@@ -73,6 +73,7 @@ let inspCalled    = [false, false];
 let pendingInsp   = null; // { ms, penalty } from this solve's inspection, until the solve is saved
 
 let lastSolveId   = null;  // the solve the +2 / DNF buttons apply to
+let editingId     = null;  // the manual solve whose time is open for fixing in the list
 let buttonPlus    = 0;     // ms added with the +2 / +0.2 buttons (only one per solve)
 
 const STAGE_COLORS = ['#40c4ff', '#ff4fa3', '#00e676', '#ffd740', '#b388ff',
@@ -534,6 +535,85 @@ function deleteButton(id) {
   return del;
 }
 
+// Pen button on typed-in (Manual) solves: opens the time for fixing
+function editButton(id) {
+  const btn = document.createElement('button');
+  btn.className = 'solve-edit';
+  btn.setAttribute('aria-label', 'Fix this time');
+  btn.textContent = '✎';
+  btn.onclick = () => {
+    editingId = id;
+    renderSolves();
+  };
+  return btn;
+}
+
+function rowActions(s) {
+  const wrap = document.createElement('span');
+  wrap.className = 'solve-actions';
+  if (s.manual) wrap.appendChild(editButton(s.id));
+  wrap.appendChild(deleteButton(s.id));
+  return wrap;
+}
+
+// The time box that replaces a manual solve's time while it's being fixed.
+// It holds the Stack Mat time; any +2 / +0.2 / DNF on the solve stays.
+function editForm(s) {
+  const form = document.createElement('form');
+  form.className = 'edit-form';
+  form.autocomplete = 'off';
+
+  const line  = document.createElement('div');
+  line.className = 'edit-line';
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.inputMode = 'decimal';
+  input.enterKeyHint = 'done';
+  input.className = 'edit-input';
+  input.value = fmtShort(s.ms);
+  input.setAttribute('aria-label', 'Stack Mat time');
+  const save = document.createElement('button');
+  save.type = 'submit';
+  save.className = 'edit-save';
+  save.textContent = 'Save';
+  const cancel = document.createElement('button');
+  cancel.type = 'button';
+  cancel.className = 'edit-cancel';
+  cancel.textContent = 'Cancel';
+  line.append(input, save, cancel);
+
+  const note = document.createElement('div');
+  note.className = 'edit-note';
+  if (s.plus || s.dnf) note.textContent = 'Type the Stack Mat time. Your penalty stays on.';
+  form.append(line, note);
+
+  const close = () => {
+    editingId = null;
+    renderSolves();
+  };
+  cancel.onclick = close;
+  input.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+  input.addEventListener('input', () => input.classList.remove('bad'));
+  form.addEventListener('submit', e => {
+    e.preventDefault();
+    const ms = parseTime(input.value);
+    if (ms === null) {
+      input.classList.add('bad');
+      note.textContent = 'Type a time like 12.34 or 1:05.20';
+      note.className = 'edit-note bad';
+      return;
+    }
+    s.ms = ms;
+    saveSolves();
+    close();
+    if (lastSolve() === s) showResult(s);
+  });
+
+  // Open with the time selected, ready to retype
+  requestAnimationFrame(() => { input.focus(); input.select(); });
+  return form;
+}
+
 function renderSolves() {
   // Say which folder and set of solves is on screen
   progressTitle.textContent = `${folderLabel()} Progress`;
@@ -583,7 +663,12 @@ function renderSolveList(list) {
     numEl.className = 'solve-num';
     numEl.textContent = `#${num}`;
 
-    row.append(numEl, timeWithBadge(s, 'solve-time'), deleteButton(s.id));
+    if (s.id === editingId) {
+      row.classList.add('editing');
+      row.append(numEl, editForm(s));
+    } else {
+      row.append(numEl, timeWithBadge(s, 'solve-time'), rowActions(s));
+    }
     solvesList.appendChild(row);
   });
 }
@@ -634,6 +719,14 @@ function renderStageTable(rows) {
     if (counts(s) && finalMs(s) === best) tr.className = 'best';
 
     tr.insertCell().textContent = `#${rows.length - ri}`;
+    if (s.id === editingId) {
+      tr.className = 'editing';
+      const td = tr.insertCell();
+      td.colSpan = n + 2;
+      td.className = 'edit-cell';
+      td.appendChild(editForm(s));
+      return;
+    }
     for (let i = 0; i < n; i++) {
       const td = tr.insertCell();
       const t  = s.stages && s.stages[i];
@@ -653,7 +746,7 @@ function renderStageTable(rows) {
     total.className = 'total';
     total.appendChild(timeWithBadge(s, ''));
 
-    tr.insertCell().appendChild(deleteButton(s.id));
+    tr.insertCell().appendChild(rowActions(s));
   });
   solvesList.appendChild(table);
 }
@@ -1167,6 +1260,7 @@ function switchFolder(id) {
   settings = settingsFor(folder);
   refreshSettingsUI();
   clearLastSolve();
+  editingId = null;
   timerText.textContent = '0:00.00';
   setStatus('');
   setManualNote('');
