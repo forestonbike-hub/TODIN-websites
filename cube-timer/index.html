@@ -36,8 +36,17 @@
           <div id="progress-title" class="chart-title">Progress</div>
           <canvas id="progress-chart"></canvas>
           <div id="chart-hint" class="chart-hint">No solves yet</div>
-          <!-- All / Stage On / Stage Off: which solves the chart, stats and table use -->
+          <!-- All / Stage On / Stage Off / Manual: which solves the chart, stats and table use -->
           <div id="view-row" role="radiogroup" aria-label="Which solves to show"></div>
+          <!-- Manual: type in a time from the Stack Mat timer -->
+          <form id="manual-form" class="hidden" autocomplete="off">
+            <label for="manual-input" class="manual-label">Type your Stack Mat time</label>
+            <div class="manual-line">
+              <input type="text" id="manual-input" inputmode="decimal" placeholder="like 12.34" enterkeyhint="done">
+              <button type="submit" id="manual-save">Save</button>
+            </div>
+            <div id="manual-note"></div>
+          </form>
         </div>
         <div id="best-bar">
           <span id="best-label">Best Time</span>

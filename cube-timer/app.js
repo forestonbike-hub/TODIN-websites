@@ -1,12 +1,13 @@
 // ── STATE ─────────────────────────────────────────────────────────────────────
 let solves     = JSON.parse(localStorage.getItem('cubeSolves') || '[]').map(upgradeSolve);
-// solves[i] = { id, ms, folder, plus?, dnf?, insp?, stages? }
+// solves[i] = { id, ms, folder, plus?, dnf?, insp?, stages?, manual? }
 //   folder: which puzzle folder it belongs to ('2x2', '3x3', ... 'pyraminx')
 //   plus:   ms added as penalties (+2 from inspection, +2 or +0.2 from the buttons)
 //   dnf:    true for a DNF (from inspection or the DNF button)
 //   dnfCounts: true if a kept DNF should still count toward Best Time and Average
 //   insp:   inspection length in ms
 //   stages: ms for each stage (Stage Practice), adds up to ms
+//   manual: true for a time typed in from the Stack Mat timer
 
 // Older saves kept penalties as one label ('+2', '+4' or 'DNF') and had no
 // folders; every solve from before folders belongs to 3x3
@@ -38,12 +39,13 @@ const DEFAULT_SETTINGS = {
   stageOn: false, stageCount: 4, stageBeep: true,
   inspOn: false, voiceOn: true, voice1: 8, voice2: 12,
   stackOn: false,
-  view: 'all',   // which solves the chart, stats and table show: 'all', 'on' or 'off'
+  view: 'all',   // which solves the chart, stats and table show: 'all', 'on', 'off' or 'manual'
 };
 const VIEWS = [
   { id: 'all', label: 'All' },
   { id: 'on',  label: 'Stage On' },
   { id: 'off', label: 'Stage Off' },
+  { id: 'manual', label: 'Manual' },
 ];
 // Each folder keeps its own settings. Before folders there was one settings
 // object, which becomes the 3x3 folder's settings.
@@ -129,6 +131,9 @@ const penaltyBtns  = document.getElementById('penalty-btns');
 const plus2Btn     = document.getElementById('plus2-btn');
 const plus02Btn    = document.getElementById('plus02-btn');
 const dnfBtn       = document.getElementById('dnf-btn');
+const manualForm   = document.getElementById('manual-form');
+const manualInput  = document.getElementById('manual-input');
+const manualNote   = document.getElementById('manual-note');
 const modal        = document.getElementById('modal');
 const modalTitle   = document.getElementById('modal-title');
 const modalText    = document.getElementById('modal-text');
@@ -173,12 +178,15 @@ function folderSolves() {
 function stageSolves() {
   return folderSolves().filter(s => s.stages && s.stages.length === settings.stageCount);
 }
-// The All / Stage On / Stage Off buttons pick which of this folder's solves the
-// Progress chart, Best Time, Average and the solve table show (and calculate from)
+// The All / Stage On / Stage Off / Manual buttons pick which of this folder's
+// solves the Progress chart, Best Time, Average and the solve table show (and
+// calculate from). All mixes app-timed and typed-in solves; Stage On and Stage
+// Off are app-timed only; Manual is typed-in only.
 function viewSolves() {
   const list = folderSolves();
-  if (settings.view === 'on')  return list.filter(s => s.stages);
-  if (settings.view === 'off') return list.filter(s => !s.stages);
+  if (settings.view === 'on')     return list.filter(s => s.stages);
+  if (settings.view === 'off')    return list.filter(s => !s.stages && !s.manual);
+  if (settings.view === 'manual') return list.filter(s => s.manual);
   return list;
 }
 const viewLabel = () => VIEWS.find(v => v.id === settings.view).label;
@@ -531,6 +539,7 @@ function renderSolves() {
   progressTitle.textContent = `${folderLabel()} Progress`;
   solvesTitle.textContent   = `${folderLabel()} Solves · ${viewLabel()}`;
   renderViewButtons();
+  manualForm.classList.toggle('hidden', settings.view !== 'manual');
 
   drawChart();
   drawStageChart();
@@ -555,6 +564,7 @@ function renderViewButtons() {
       if (settings.view === v.id) return;
       settings.view = v.id;
       saveSettings();
+      setManualNote('');
       renderSolves();
     };
     viewRow.appendChild(btn);
@@ -928,8 +938,8 @@ function renderRunSplits() {
 // ── HOLD TO START ─────────────────────────────────────────────────────────────
 function onHoldStart(e) {
   if (isRunning || isHolding || isInspecting) return;
-  // Ignore taps on buttons, settings and pads
-  if (e.target.closest('button, #settings, .pad')) return;
+  // Ignore taps on buttons, settings, pads and the Manual time box
+  if (e.target.closest('button, input, #settings, #manual-form, .pad')) return;
   // Ignore a second hand landing right after a stop
   if (Date.now() - lastStopAt < 400) return;
   if (document.activeElement) document.activeElement.blur();
@@ -975,6 +985,7 @@ function startTimer(now = Date.now()) {
   lastTapAt = startTime;
   splits = [];
   setStatus('');
+  setManualNote('');
   clearLastSolve();
   runPads.reset();
 
@@ -1062,7 +1073,7 @@ clearBtn.onclick = async () => {
   if (list.length === 0) return;
   const n = list.length;
   const plural = n === 1 ? '' : 's';
-  const kind = { all: '', on: ' Stage Practice', off: ' regular' }[settings.view];
+  const kind = { all: '', on: ' Stage Practice', off: ' regular', manual: ' manual' }[settings.view];
   const ok = await ask(
     `Clear your ${folderLabel()}${kind} solves?`,
     `This deletes your ${n} ${folderLabel()}${kind} solve${plural} on this device, along with ${n === 1 ? 'its' : 'their'} chart, best time and average. ${settings.view === 'all' ? 'Other folders stay' : 'Your other solves stay'}. It can't be undone.`,
@@ -1158,9 +1169,56 @@ function switchFolder(id) {
   clearLastSolve();
   timerText.textContent = '0:00.00';
   setStatus('');
+  setManualNote('');
   renderFolderButtons();
   applySettings();
 }
+
+// ── MANUAL TIMES (typed in from the Stack Mat timer) ────────────────────────
+// Reads "12.34", "12", "1:05.20" or "1:05" and returns ms, or null if it
+// isn't a time. Stack Mat shows hundredths, so extra digits are rounded.
+function parseTime(text) {
+  const t = text.trim().replace(',', '.');
+  const m = t.match(/^(?:(\d{1,2}):)?(\d{1,4})(?:\.(\d*))?$/);
+  if (!m) return null;
+  const mins = m[1] ? Number(m[1]) : 0;
+  const secs = Number(m[2]);
+  if (m[1] && secs >= 60) return null;          // 1:75 isn't a time
+  const frac = m[3] ? Number('0.' + m[3]) : 0;
+  const ms = Math.round((mins * 60 + secs + frac) * 100) * 10;
+  if (ms <= 0 || ms >= 60 * 60000) return null;  // under one hour
+  return ms;
+}
+
+function setManualNote(text, tone) {
+  manualNote.textContent = text;
+  manualNote.className = tone || '';
+  manualInput.classList.toggle('bad', tone === 'bad');
+}
+
+manualForm.addEventListener('submit', e => {
+  e.preventDefault();
+  if (isRunning || isInspecting) return;
+  const ms = parseTime(manualInput.value);
+  if (ms === null) {
+    setManualNote('Type a time like 12.34 or 1:05.20', 'bad');
+    return;
+  }
+  manualInput.value = '';
+  manualInput.blur();
+  // Saved like a just-finished solve, so the big time and the
+  // +2 / +0.2 / DNF buttons under it work on this one too
+  const solve = addSolve(ms, { manual: true });
+  lastSolveId = solve.id;
+  buttonPlus = 0;
+  showResult(solve);
+  updatePenaltyButtons();
+  const num = viewSolves().length;
+  setManualNote(`Saved ${fmt(ms)} as #${num}. Need a penalty? Use the buttons under the big time.`, 'ok');
+});
+manualInput.addEventListener('input', () => {
+  if (manualNote.className) setManualNote('');
+});
 
 // ── BLOCK LONG-PRESS CONTEXT MENU ────────────────────────────────────────────
 document.addEventListener('contextmenu', e => e.preventDefault());
