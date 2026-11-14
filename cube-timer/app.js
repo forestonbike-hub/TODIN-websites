@@ -533,17 +533,16 @@ function deleteButton(id) {
   del.textContent = '✕';
   del.onclick = () => {
     const s = solves.find(x => x.id === id);
-    if (s && s.manual) confirmDeleteManual(s);
-    else deleteSolve(id);
+    if (s) confirmDelete(s);
   };
   return del;
 }
 
-// Typed-in times can't be timed again, so ask before one is deleted
-async function confirmDeleteManual(s) {
+// Ask before any solve is deleted, so a stray tap can't lose a time
+async function confirmDelete(s) {
   const ok = await ask(
     `Delete ${fmt(finalMs(s))}?`,
-    'This removes this typed-in time from your list, chart, Best Time and Average. It can\'t be undone.',
+    'This removes this solve from your list, chart, Best Time and Average. It can\'t be undone.',
     'Delete it', 'Keep it', 'dnf');
   if (!ok || !solves.includes(s)) return;
   if (editingId === s.id) editingId = null;
