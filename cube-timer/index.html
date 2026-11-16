@@ -40,7 +40,8 @@
           <div id="view-row" role="radiogroup" aria-label="Which solves to show"></div>
           <!-- Manual: type in a time from the Stack Mat timer -->
           <form id="manual-form" class="hidden" autocomplete="off">
-            <label for="manual-input" class="manual-label">Type your Stack Mat time</label>
+            <div id="round-info"></div>
+            <label for="manual-input" id="manual-label" class="manual-label">Type your Stack Mat time</label>
             <div class="manual-line">
               <input type="text" id="manual-input" inputmode="decimal" placeholder="like 12.34" enterkeyhint="done">
               <button type="submit" id="manual-save">Save</button>
@@ -106,6 +107,20 @@
             <span class="setting-label">Stack Mat</span>
             <span class="switch"><input type="checkbox" id="stack-toggle"><span class="slider"></span></span>
           </label>
+        </div>
+      </div>
+
+      <!-- Manual view swaps the timer settings for these: how many solves in a
+           round, and where a round's times get saved -->
+      <div id="manual-settings" class="hidden">
+        <div class="setting-label">How many solves?</div>
+        <div id="round-row" role="radiogroup" aria-label="How many solves"></div>
+        <div id="save-row">
+          <button type="button" id="save-total-label" class="save-side">Save to total times</button>
+          <label class="switch both-sides" aria-label="Save separately">
+            <input type="checkbox" id="sep-toggle"><span class="slider"></span>
+          </label>
+          <button type="button" id="save-sep-label" class="save-side">Save separately</button>
         </div>
       </div>
 

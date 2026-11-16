@@ -354,6 +354,119 @@ html, body {
 .switch input:checked + .slider { background: var(--accent); }
 .switch input:checked + .slider::before { transform: translateX(24px); }
 
+/* ── MANUAL ROUND SETTINGS (replace the timer settings in Manual) ── */
+#manual-settings {
+  margin: 8px 16px 0;
+  background: var(--card);
+  border-radius: 14px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+#manual-settings.hidden { display: none; }
+#round-row {
+  display: flex;
+  gap: 6px;
+}
+.round-btn {
+  min-height: 48px;
+  font-size: 0.95rem;
+  border-radius: 24px;
+}
+@media (max-width: 600px) {
+  .round-btn { font-size: 0.85rem; }
+}
+/* Two-sided switch: whichever side is picked lights up */
+#save-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding-top: 4px;
+}
+#save-row.hidden { display: none; }
+.save-side {
+  flex: 1 1 0;
+  min-height: 44px;
+  padding: 0 4px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+#save-total-label { text-align: right; }
+#save-sep-label   { text-align: left; }
+.save-side.on { color: var(--accent); }
+.switch.both-sides { cursor: pointer; }
+.switch.both-sides .slider { background: #00838f; }
+
+/* Times typed in so far, and in each saved round */
+.round-times {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.round-time {
+  font-size: 1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.round-time.cut  { color: var(--muted); font-weight: 600; }
+.round-time.dnf  { color: var(--danger); }
+.round-time.has-plus { color: #ffab00; }
+.round-time.cut.has-plus, .round-time.cut.dnf { opacity: 0.75; }
+.round-times.live {
+  padding: 6px 2px 2px;
+}
+.round-times.live .round-time {
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 4px 10px;
+}
+/* The average when a round is finished */
+.round-result {
+  background: var(--bg);
+  border: 2px solid var(--green);
+  border-radius: 12px;
+  padding: 10px 12px;
+  text-align: center;
+}
+.round-result.dnf { border-color: var(--danger); }
+.round-result-title {
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.round-result-time {
+  font-size: 2rem;
+  font-weight: 900;
+  color: var(--green);
+  font-variant-numeric: tabular-nums;
+}
+.round-result.dnf .round-result-time { color: var(--danger); }
+.round-result-note { font-size: 0.8rem; color: var(--muted); }
+
+/* One row per round in the saved-separately table */
+.round-row { gap: 12px; }
+.round-row .solve-num { flex-shrink: 0; }
+.round-avg {
+  flex-shrink: 0;
+  font-size: 1.3rem;
+  font-weight: bold;
+  font-variant-numeric: tabular-nums;
+}
+.round-row.best .round-avg { color: var(--accent); }
+.round-avg.waiting { font-size: 0.85rem; color: var(--muted); }
+.round-avg.dnf { color: var(--danger); }
+
 /* Number boxes */
 .voice-fields {
   display: flex;

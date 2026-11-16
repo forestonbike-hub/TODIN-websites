@@ -8,6 +8,8 @@ let solves     = JSON.parse(localStorage.getItem('cubeSolves') || '[]').map(upgr
 //   insp:   inspection length in ms
 //   stages: ms for each stage (Stage Practice), adds up to ms
 //   manual: true for a time typed in from the Stack Mat timer
+//   roundId, roundSize: part of an Out of 5 or Out of 12 round (Manual)
+//   sep:    true if that round was saved separately from the total times
 
 // Older saves kept penalties as one label ('+2', '+4' or 'DNF') and had no
 // folders; every solve from before folders belongs to 3x3
@@ -40,7 +42,16 @@ const DEFAULT_SETTINGS = {
   inspOn: false, voiceOn: true, voice1: 8, voice2: 12,
   stackOn: false,
   view: 'all',   // which solves the chart, stats and table show: 'all', 'on', 'off' or 'manual'
+  manualRound: 'single',  // Manual: 'single', '5' (Out of 5) or '12' (Out of 12)
+  saveSep: false,         // Manual rounds: false = save to total times, true = save separately
+  roundId: null,          // the round being typed in right now
+  lastRoundId: null,      // the round just finished, to show its average
 };
+const ROUNDS = [
+  { id: 'single', label: 'Single' },
+  { id: '5',  label: 'Out of 5',  size: 5 },
+  { id: '12', label: 'Out of 12', size: 12 },
+];
 const VIEWS = [
   { id: 'all', label: 'All' },
   { id: 'on',  label: 'Stage On' },
@@ -135,6 +146,17 @@ const dnfBtn       = document.getElementById('dnf-btn');
 const manualForm   = document.getElementById('manual-form');
 const manualInput  = document.getElementById('manual-input');
 const manualNote   = document.getElementById('manual-note');
+const manualLabel  = document.getElementById('manual-label');
+const roundInfo    = document.getElementById('round-info');
+const settingsEl   = document.getElementById('settings');
+const manualSettings = document.getElementById('manual-settings');
+const roundRow     = document.getElementById('round-row');
+const saveRow      = document.getElementById('save-row');
+const sepToggle    = document.getElementById('sep-toggle');
+const saveTotalLabel = document.getElementById('save-total-label');
+const saveSepLabel = document.getElementById('save-sep-label');
+const bestLabel    = document.getElementById('best-label');
+const avgLabel     = document.getElementById('avg-label');
 const modal        = document.getElementById('modal');
 const modalTitle   = document.getElementById('modal-title');
 const modalText    = document.getElementById('modal-text');
@@ -172,9 +194,52 @@ function inspPenalty(ms) {
   if (ms >= 15000) return '+2';
   return null;
 }
+// This folder's solves, except rounds saved separately (those live in their own lists)
 function folderSolves() {
-  return solves.filter(s => s.folder === folder);
+  return solves.filter(s => s.folder === folder && !s.sep);
 }
+// ── ROUNDS (Manual: Out of 5 / Out of 12) ────────────────────────────────────
+// Size of a round for the selected Manual button (0 for Single)
+function roundSize() {
+  return (ROUNDS.find(r => r.id === settings.manualRound) || {}).size || 0;
+}
+const roundLabel = () => ROUNDS.find(r => r.id === settings.manualRound).label;
+// Manual + Out of 5 or 12 + Save separately: the chart and table show that round list
+function roundsView() {
+  return settings.view === 'manual' && roundSize() > 0 && settings.saveSep;
+}
+function roundSolves(id) {
+  return id ? solves.filter(s => s.roundId === id) : [];
+}
+function currentRoundSolves() {
+  return roundSolves(settings.roundId);
+}
+// Competition average: drop the fastest and slowest, then average the rest.
+// A DNF counts as the slowest; two or more DNFs make the whole average a DNF.
+// Returns undefined while the round isn't finished, null for a DNF average.
+function roundAverage(list) {
+  if (list.length === 0 || list.length < list[0].roundSize) return undefined;
+  const times  = list.map(s => counts(s) ? finalMs(s) : Infinity).sort((a, b) => a - b);
+  const middle = times.slice(1, -1);
+  if (middle.includes(Infinity)) return null;
+  return Math.round(middle.reduce((a, b) => a + b, 0) / middle.length / 10) * 10;
+}
+// The fastest and slowest solve of a finished round (the two left out)
+function trimmed(list) {
+  const key = s => counts(s) ? finalMs(s) : Infinity;
+  const sorted = [...list].sort((a, b) => key(a) - key(b));
+  return { fast: sorted[0], slow: sorted[sorted.length - 1] };
+}
+// Groups solves into rounds, oldest first
+function roundStats(list) {
+  const groups = new Map();
+  list.forEach(s => {
+    if (!groups.has(s.roundId)) groups.set(s.roundId, []);
+    groups.get(s.roundId).push(s);
+  });
+  return [...groups.entries()].map(([id, rs]) => ({ id, solves: rs, size: rs[0].roundSize, avg: roundAverage(rs) }));
+}
+const finishedRounds = (stats) => stats.filter(r => typeof r.avg === 'number');
 // This folder's solves recorded with the current number of stages
 function stageSolves() {
   return folderSolves().filter(s => s.stages && s.stages.length === settings.stageCount);
@@ -184,6 +249,10 @@ function stageSolves() {
 // calculate from). All mixes app-timed and typed-in solves; Stage On and Stage
 // Off are app-timed only; Manual is typed-in only.
 function viewSolves() {
+  if (roundsView()) {
+    const size = roundSize();
+    return solves.filter(s => s.folder === folder && s.sep && s.roundSize === size);
+  }
   const list = folderSolves();
   if (settings.view === 'on')     return list.filter(s => s.stages);
   if (settings.view === 'off')    return list.filter(s => !s.stages && !s.manual);
@@ -411,16 +480,19 @@ function drawChart() {
   const h = 70;
   const { ctx, w } = prepCanvas(chartCanvas, h);
 
-  const list  = viewSolves();
-  const times = list.map(finalMs);
+  // Rounds saved separately chart one dot per finished round (its average)
+  const rounds = roundsView();
+  const list   = viewSolves();
+  const times  = rounds ? finishedRounds(roundStats(list)).map(r => r.avg) : list.map(finalMs);
+  chartHint.textContent = rounds ? `Finish an ${roundLabel()} round to see your averages` : 'No solves yet';
   if (times.length < 2) {
-    chartHint.style.display = list.length === 0 ? 'block' : 'none';
+    chartHint.style.display = times.length === 0 ? 'block' : 'none';
     return;
   }
   chartHint.style.display = 'none';
 
   const { px, py } = chartScale([times], w, h);
-  const best = getBest(list);
+  const best = rounds ? Math.min(...times) : getBest(list);
 
   // Gradient fill
   const grad = ctx.createLinearGradient(0, 8, 0, h);
@@ -440,8 +512,8 @@ function drawChart() {
 
   // Dots
   times.forEach((t, i) => {
-    const dnf    = isDNF(list[i]);
-    const isBest = counts(list[i]) && t === best;
+    const dnf    = !rounds && isDNF(list[i]);
+    const isBest = (rounds || counts(list[i])) && t === best;
     ctx.beginPath();
     ctx.arc(px(i), py(t), isBest ? 5 : dnf ? 4 : 3, 0, Math.PI * 2);
     ctx.fillStyle = isBest ? '#ffe600' : dnf ? '#ff5252' : '#00e5ff';
@@ -451,7 +523,7 @@ function drawChart() {
 
 // One colored line per stage
 function drawStageChart() {
-  if (!settings.stageOn) return;
+  if (!settings.stageOn || settings.view === 'manual') return;
   const h = 80;
   const { ctx, w } = prepCanvas(stageCanvas, h);
 
@@ -502,8 +574,18 @@ function getAverage(list = viewSolves()) {
   return Math.round(counted.reduce((sum, s) => sum + finalMs(s), 0) / counted.length);
 }
 function updateBestBar() {
-  const b = getBest();
-  const a = getAverage();
+  const rounds = roundsView();
+  bestLabel.textContent = rounds ? 'Best Average' : 'Best Time';
+  avgLabel.textContent  = rounds ? 'All Rounds' : 'Average';
+  let b, a;
+  if (rounds) {
+    const avgs = finishedRounds(roundStats(viewSolves())).map(r => r.avg);
+    b = avgs.length ? Math.min(...avgs) : null;
+    a = avgs.length ? Math.round(avgs.reduce((x, y) => x + y, 0) / avgs.length) : null;
+  } else {
+    b = getBest();
+    a = getAverage();
+  }
   bestTime.textContent = b !== null ? fmt(b) : '--:--.--';
   avgTime.textContent  = a !== null ? fmt(a) : '--:--.--';
 }
@@ -635,17 +717,28 @@ function editForm(s) {
 
 function renderSolves() {
   // Say which folder and set of solves is on screen
-  progressTitle.textContent = `${folderLabel()} Progress`;
-  solvesTitle.textContent   = `${folderLabel()} Solves · ${viewLabel()}`;
+  const manual = settings.view === 'manual';
+  const rounds = roundsView();
+  progressTitle.textContent = rounds ? `${folderLabel()} ${roundLabel()} Averages` : `${folderLabel()} Progress`;
+  solvesTitle.textContent   = rounds ? `${folderLabel()} ${roundLabel()} Rounds` : `${folderLabel()} Solves · ${viewLabel()}`;
   renderViewButtons();
-  manualForm.classList.toggle('hidden', settings.view !== 'manual');
+  // Manual swaps the timer settings (stages, inspection, voice) for the round settings
+  manualForm.classList.toggle('hidden', !manual);
+  settingsEl.classList.toggle('hidden', manual);
+  manualSettings.classList.toggle('hidden', !manual);
+  stageWrap.classList.toggle('hidden', !settings.stageOn || manual);
+  if (manual) {
+    renderManualSettings();
+    renderRoundInfo();
+  }
 
   drawChart();
   drawStageChart();
   solvesList.innerHTML = '';
   // Stage columns whenever any shown solve has stage times; a plain list otherwise
   const list = viewSolves();
-  if (settings.view === 'on' || list.some(s => s.stages)) renderStageTable(list);
+  if (rounds) renderRoundTable(list);
+  else if (settings.view === 'on' || list.some(s => s.stages)) renderStageTable(list);
   else renderSolveList(list);
   updateBestBar();
   updatePenaltyButtons();
@@ -770,6 +863,82 @@ function renderStageTable(rows) {
   solvesList.appendChild(table);
 }
 
+// Out of 5 / Out of 12 rounds saved separately: one row per round with its
+// times (fastest and slowest in brackets, like competitions) and the average
+function renderRoundTable(list) {
+  const stats = roundStats(list);
+  if (stats.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'stage-empty';
+    empty.textContent = `No ${roundLabel()} rounds yet. Type your first time above.`;
+    solvesList.appendChild(empty);
+    return;
+  }
+  const done = finishedRounds(stats);
+  const best = done.length ? Math.min(...done.map(r => r.avg)) : null;
+
+  [...stats].reverse().forEach((r, ri) => {
+    const row = document.createElement('div');
+    row.className = 'solve-row round-row' + (r.avg === best ? ' best' : '');
+
+    const numEl = document.createElement('span');
+    numEl.className = 'solve-num';
+    numEl.textContent = `#${stats.length - ri}`;
+
+    const timesEl = document.createElement('span');
+    timesEl.className = 'round-times';
+    const cut = r.avg !== undefined ? trimmed(r.solves) : {};
+    r.solves.forEach(s => {
+      const chip = document.createElement('span');
+      const left = s === cut.fast || s === cut.slow;
+      chip.className = 'round-time' + (left ? ' cut' : '') + (s.plus ? ' has-plus' : '') + (counts(s) ? '' : ' dnf');
+      const t = counts(s) ? fmtShort(finalMs(s)) : 'DNF';
+      chip.textContent = left ? `(${t})` : t;
+      timesEl.appendChild(chip);
+    });
+
+    const avgEl = document.createElement('span');
+    avgEl.className = 'round-avg';
+    if (r.avg === undefined) {
+      avgEl.textContent = `${r.solves.length} of ${r.size}`;
+      avgEl.classList.add('waiting');
+    } else if (r.avg === null) {
+      avgEl.textContent = 'DNF';
+      avgEl.classList.add('dnf');
+    } else {
+      avgEl.textContent = fmt(r.avg);
+    }
+
+    const del = document.createElement('button');
+    del.className = 'solve-del';
+    del.textContent = '✕';
+    del.onclick = () => confirmDeleteRound(r, stats.length - ri);
+
+    row.append(numEl, timesEl, avgEl, del);
+    solvesList.appendChild(row);
+  });
+}
+
+async function confirmDeleteRound(r, num) {
+  const ok = await ask(
+    `Delete round #${num}?`,
+    `This removes all ${r.solves.length} times in this round and its average. It can't be undone.`,
+    'Delete it', 'Keep it', 'dnf');
+  if (!ok) return;
+  const ids = new Set(r.solves.map(s => s.id));
+  if (ids.has(lastSolveId)) {
+    clearLastSolve();
+    timerText.textContent = '0:00.00';
+    setStatus('');
+  }
+  if (settings.roundId === r.id) settings.roundId = null;
+  if (settings.lastRoundId === r.id) settings.lastRoundId = null;
+  saveSettings();
+  solves = solves.filter(s => !ids.has(s.id));
+  saveSolves();
+  renderSolves();
+}
+
 function saveSolves() {
   localStorage.setItem('cubeSolves', JSON.stringify(solves));
 }
@@ -783,7 +952,16 @@ function addSolve(ms, extra) {
 }
 
 function deleteSolve(id) {
+  const gone = solves.find(s => s.id === id);
   solves = solves.filter(s => s.id !== id);
+  // Removing a time from the round that just finished opens that round again
+  // (still set up the same way), so the missing time can be typed in
+  if (gone && gone.roundId && gone.roundId === settings.lastRoundId && !settings.roundId
+      && gone.roundSize === roundSize() && !!gone.sep === settings.saveSep) {
+    settings.roundId = gone.roundId;
+    settings.lastRoundId = null;
+    saveSettings();
+  }
   saveSolves();
   renderSolves();
 }
@@ -1051,7 +1229,7 @@ function renderRunSplits() {
 function onHoldStart(e) {
   if (isRunning || isHolding || isInspecting) return;
   // Ignore taps on buttons, settings, pads and the Manual time box
-  if (e.target.closest('button, input, #settings, #manual-form, .pad')) return;
+  if (e.target.closest('button, input, #settings, #manual-settings, #manual-form, .pad')) return;
   // Ignore a second hand landing right after a stop
   if (Date.now() - lastStopAt < 400) return;
   if (document.activeElement) document.activeElement.blur();
@@ -1185,13 +1363,16 @@ clearBtn.onclick = async () => {
   if (list.length === 0) return;
   const n = list.length;
   const plural = n === 1 ? '' : 's';
-  const kind = { all: '', on: ' Stage Practice', off: ' regular', manual: ' manual' }[settings.view];
+  const kind = roundsView()
+    ? ` ${roundLabel()}`
+    : { all: '', on: ' Stage Practice', off: ' regular', manual: ' manual' }[settings.view];
   const ok = await ask(
     `Clear your ${folderLabel()}${kind} solves?`,
     `This deletes your ${n} ${folderLabel()}${kind} solve${plural} on this device, along with ${n === 1 ? 'its' : 'their'} chart, best time and average. ${settings.view === 'all' ? 'Other folders stay' : 'Your other solves stay'}. It can't be undone.`,
     'Clear all', 'Cancel', 'dnf');
   if (!ok) return;
   solves = solves.filter(s => !list.includes(s));
+  if (list.includes(lastSolve())) clearLastSolve();
   saveSolves();
   renderSolves();
   timerText.textContent = '0:00.00';
@@ -1208,7 +1389,6 @@ function saveSettings() {
 function applySettings() {
   stageOptions.classList.toggle('hidden', !settings.stageOn);
   stageSub.classList.toggle('hidden', !settings.stageOn);
-  stageWrap.classList.toggle('hidden', !settings.stageOn);
   inspOptions.classList.toggle('hidden', !settings.inspOn);
   voiceOptions.classList.toggle('hidden', !settings.voiceOn);
   renderLegend();
@@ -1318,17 +1498,162 @@ manualForm.addEventListener('submit', e => {
     return;
   }
   manualInput.value = '';
-  manualInput.blur();
+
+  // Out of 5 / Out of 12: tag the time with its round. The first time starts a new round.
+  const size  = roundSize();
+  const extra = { manual: true };
+  if (size) {
+    if (currentRoundSolves().length === 0) settings.roundId = Date.now();
+    settings.lastRoundId = null;
+    extra.roundId = settings.roundId;
+    extra.roundSize = size;
+    if (settings.saveSep) extra.sep = true;
+  } else {
+    manualInput.blur();
+  }
+
   // Saved like a just-finished solve, so the big time and the
   // +2 / +0.2 / DNF buttons under it work on this one too
-  const solve = addSolve(ms, { manual: true });
+  const solve = addSolve(ms, extra);
   lastSolveId = solve.id;
   buttonPlus = 0;
   showResult(solve);
+
+  if (size) {
+    const n = currentRoundSolves().length;
+    if (n >= size) {
+      // Round done: its average shows above the time box
+      settings.lastRoundId = settings.roundId;
+      settings.roundId = null;
+      manualInput.blur();
+      setManualNote('');
+    } else {
+      setManualNote(`Saved ${fmt(ms)} as solve ${n} of ${size}.`, 'ok');
+    }
+    saveSettings();
+    renderSolves();
+    return;
+  }
   updatePenaltyButtons();
   const num = viewSolves().length;
   setManualNote(`Saved ${fmt(ms)} as #${num}. Need a penalty? Use the buttons under the big time.`, 'ok');
 });
+
+// ── ROUND SETTINGS (Single / Out of 5 / Out of 12, and where they save) ──────
+function renderManualSettings() {
+  roundRow.innerHTML = '';
+  ROUNDS.forEach(r => {
+    const btn = document.createElement('button');
+    btn.className = 'view-btn round-btn' + (r.id === settings.manualRound ? ' active' : '');
+    btn.textContent = r.label;
+    btn.setAttribute('role', 'radio');
+    btn.setAttribute('aria-checked', r.id === settings.manualRound);
+    btn.onclick = () => {
+      if (settings.manualRound === r.id) return;
+      changeRoundSetting(() => { settings.manualRound = r.id; });
+    };
+    roundRow.appendChild(btn);
+  });
+  // Single always saves to the total times, so the switch only shows for rounds
+  saveRow.classList.toggle('hidden', !roundSize());
+  sepToggle.checked = settings.saveSep;
+  saveTotalLabel.classList.toggle('on', !settings.saveSep);
+  saveSepLabel.classList.toggle('on', settings.saveSep);
+}
+
+// The times saved so far in this round, or the average of the round just finished
+function renderRoundInfo() {
+  const size = roundSize();
+  roundInfo.innerHTML = '';
+  if (!size) {
+    manualLabel.textContent = 'Type your Stack Mat time';
+    return;
+  }
+  const cur = currentRoundSolves();
+  manualLabel.textContent = `Type solve ${cur.length + 1} of ${size}`;
+
+  if (cur.length) {
+    const chips = document.createElement('div');
+    chips.className = 'round-times live';
+    cur.forEach(s => {
+      const chip = document.createElement('span');
+      chip.className = 'round-time' + (counts(s) ? '' : ' dnf');
+      chip.textContent = counts(s) ? fmtShort(finalMs(s)) : 'DNF';
+      chips.appendChild(chip);
+    });
+    roundInfo.appendChild(chips);
+    return;
+  }
+
+  const last = roundSolves(settings.lastRoundId);
+  const avg  = roundAverage(last);
+  if (avg === undefined) return;
+  const box = document.createElement('div');
+  box.className = 'round-result' + (avg === null ? ' dnf' : '');
+  const title = document.createElement('div');
+  title.className = 'round-result-title';
+  title.textContent = `Average of ${last.length}`;
+  const big = document.createElement('div');
+  big.className = 'round-result-time';
+  big.textContent = avg === null ? 'DNF' : fmt(avg);
+  const note = document.createElement('div');
+  note.className = 'round-result-note';
+  const { fast, slow } = trimmed(last);
+  const show = s => counts(s) ? fmtShort(finalMs(s)) : 'DNF';
+  const where = last[0].sep ? `Saved in your ${roundLabel()} rounds.` : 'All times saved to your total times.';
+  note.textContent = avg === null
+    ? `2 or more DNFs means no average for this round. ${where}`
+    : `Fastest (${show(fast)}) and slowest (${show(slow)}) left out. ${where}`;
+  box.append(title, big, note);
+  roundInfo.appendChild(box);
+}
+
+// Changing the round type or the save switch in the middle of a round stops it
+async function changeRoundSetting(apply) {
+  const cur = currentRoundSolves();
+  if (cur.length) {
+    const n = cur.length;
+    const size = roundSize();
+    const ok = await ask(
+      'Stop this round?',
+      settings.saveSep
+        ? `You have ${n} of ${size} times in this round. Stopping deletes ${n === 1 ? 'that time' : `those ${n} times`}.`
+        : `You have ${n} of ${size} times in this round. ${n === 1 ? 'It stays' : 'They stay'} in your total times, but this round gets no average.`,
+      'Stop round', 'Keep going', 'dnf');
+    if (!ok) { renderSolves(); return; }
+    if (settings.saveSep) {
+      const ids = new Set(cur.map(s => s.id));
+      if (ids.has(lastSolveId)) {
+        clearLastSolve();
+        timerText.textContent = '0:00.00';
+        setStatus('');
+      }
+      solves = solves.filter(s => !ids.has(s.id));
+    } else {
+      // Kept as plain typed-in times
+      cur.forEach(s => { delete s.roundId; delete s.roundSize; });
+    }
+    saveSolves();
+  }
+  settings.roundId = null;
+  settings.lastRoundId = null;
+  apply();
+  saveSettings();
+  setManualNote('');
+  renderSolves();
+}
+
+sepToggle.addEventListener('change', () => {
+  const want = sepToggle.checked;
+  changeRoundSetting(() => { settings.saveSep = want; });
+});
+saveTotalLabel.addEventListener('click', () => {
+  if (settings.saveSep) changeRoundSetting(() => { settings.saveSep = false; });
+});
+saveSepLabel.addEventListener('click', () => {
+  if (!settings.saveSep) changeRoundSetting(() => { settings.saveSep = true; });
+});
+
 manualInput.addEventListener('input', () => {
   if (manualNote.className) setManualNote('');
 });
