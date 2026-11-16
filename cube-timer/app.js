@@ -1,3 +1,27 @@
+// If anything goes wrong, say so on screen instead of silently freezing
+window.addEventListener('error', e => {
+  const note = document.getElementById('status-note');
+  if (!note) return;
+  note.textContent = 'Something went wrong. Close the app and open it again. (' + (e.message || 'error') + ')';
+  note.className = 'danger';
+});
+
+// ── STALE PAGE CHECK ─────────────────────────────────────────────────────────
+// A tablet can keep an older copy of the page and pair it with this newer
+// script, which then can't find the new buttons and freezes. If the page is
+// missing a part this script needs, reload once and skip the browser's copy.
+(function () {
+  const need = ['manual-settings', 'round-row', 'sep-toggle', 'round-info', 'manual-label'];
+  if (need.every(id => document.getElementById(id))) {
+    try { sessionStorage.removeItem('cubeReloaded'); } catch (e) {}
+    return;
+  }
+  let tried = false;
+  try { tried = !!sessionStorage.getItem('cubeReloaded'); sessionStorage.setItem('cubeReloaded', '1'); } catch (e) {}
+  if (!tried) location.replace(location.pathname + '?fresh=' + Date.now());
+  throw new Error('Cube Timer page is out of date');
+})();
+
 // ── STATE ─────────────────────────────────────────────────────────────────────
 let solves     = JSON.parse(localStorage.getItem('cubeSolves') || '[]').map(upgradeSolve);
 // solves[i] = { id, ms, folder, plus?, dnf?, insp?, stages?, manual? }
@@ -356,7 +380,8 @@ document.addEventListener('pointerdown', e => {
   }
 }, true);
 document.addEventListener('click', e => {
-  if (Date.now() < shieldUntil) { e.preventDefault(); e.stopPropagation(); }
+  // Never block taps for more than 2 seconds, even if a finger lift was missed
+  if (Date.now() < shieldUntil && Date.now() - shieldSince < 2000) { e.preventDefault(); e.stopPropagation(); }
 }, true);
 
 // ── STACK MAT PADS ───────────────────────────────────────────────────────────
