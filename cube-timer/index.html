@@ -5,7 +5,7 @@
   <meta http-equiv="Cache-Control" content="no-cache">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Cube Timer</title>
-  <link rel="stylesheet" href="style.css?v=2">
+  <link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
 
@@ -116,12 +116,9 @@
       <div id="manual-settings" class="hidden">
         <div class="setting-label">How many solves?</div>
         <div id="round-row" role="radiogroup" aria-label="How many solves"></div>
-        <div id="save-row">
-          <button type="button" id="save-total-label" class="save-side">Save to total times</button>
-          <label class="switch both-sides" aria-label="Save separately">
-            <input type="checkbox" id="sep-toggle"><span class="slider"></span>
-          </label>
-          <button type="button" id="save-sep-label" class="save-side">Save separately</button>
+        <div id="save-row" role="radiogroup" aria-label="Where to save">
+          <button type="button" id="save-total-label" class="view-btn round-btn" role="radio">Save to total times</button>
+          <button type="button" id="save-sep-label" class="view-btn round-btn" role="radio">Save separately</button>
         </div>
       </div>
 
@@ -206,6 +203,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=2"></script>
+  <script src="app.js?v=3"></script>
 </body>
 </html>

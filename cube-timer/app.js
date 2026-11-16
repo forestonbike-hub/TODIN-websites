@@ -11,7 +11,7 @@ window.addEventListener('error', e => {
 // script, which then can't find the new buttons and freezes. If the page is
 // missing a part this script needs, reload once and skip the browser's copy.
 (function () {
-  const need = ['manual-settings', 'round-row', 'sep-toggle', 'round-info', 'manual-label'];
+  const need = ['manual-settings', 'round-row', 'save-row', 'round-info', 'manual-label'];
   if (need.every(id => document.getElementById(id))) {
     try { sessionStorage.removeItem('cubeReloaded'); } catch (e) {}
     return;
@@ -176,7 +176,6 @@ const settingsEl   = document.getElementById('settings');
 const manualSettings = document.getElementById('manual-settings');
 const roundRow     = document.getElementById('round-row');
 const saveRow      = document.getElementById('save-row');
-const sepToggle    = document.getElementById('sep-toggle');
 const saveTotalLabel = document.getElementById('save-total-label');
 const saveSepLabel = document.getElementById('save-sep-label');
 const bestLabel    = document.getElementById('best-label');
@@ -1579,11 +1578,12 @@ function renderManualSettings() {
     };
     roundRow.appendChild(btn);
   });
-  // Single always saves to the total times, so the switch only shows for rounds
+  // Single always saves to the total times, so these buttons only show for rounds
   saveRow.classList.toggle('hidden', !roundSize());
-  sepToggle.checked = settings.saveSep;
-  saveTotalLabel.classList.toggle('on', !settings.saveSep);
-  saveSepLabel.classList.toggle('on', settings.saveSep);
+  saveTotalLabel.classList.toggle('active', !settings.saveSep);
+  saveSepLabel.classList.toggle('active', settings.saveSep);
+  saveTotalLabel.setAttribute('aria-checked', !settings.saveSep);
+  saveSepLabel.setAttribute('aria-checked', settings.saveSep);
 }
 
 // The times saved so far in this round, or the average of the round just finished
@@ -1668,10 +1668,6 @@ async function changeRoundSetting(apply) {
   renderSolves();
 }
 
-sepToggle.addEventListener('change', () => {
-  const want = sepToggle.checked;
-  changeRoundSetting(() => { settings.saveSep = want; });
-});
 saveTotalLabel.addEventListener('click', () => {
   if (settings.saveSep) changeRoundSetting(() => { settings.saveSep = false; });
 });

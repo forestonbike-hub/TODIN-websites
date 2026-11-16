@@ -377,32 +377,12 @@ html, body {
 @media (max-width: 600px) {
   .round-btn { font-size: 0.85rem; }
 }
-/* Two-sided switch: whichever side is picked lights up */
+/* Save to total times / Save separately: pick one, like the round buttons */
 #save-row {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding-top: 4px;
+  gap: 6px;
 }
 #save-row.hidden { display: none; }
-.save-side {
-  flex: 1 1 0;
-  min-height: 44px;
-  padding: 0 4px;
-  background: none;
-  border: none;
-  color: var(--muted);
-  font-family: inherit;
-  font-size: 0.95rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-#save-total-label { text-align: right; }
-#save-sep-label   { text-align: left; }
-.save-side.on { color: var(--accent); }
-.switch.both-sides { cursor: pointer; }
-.switch.both-sides .slider { background: #00838f; }
 
 /* Times typed in so far, and in each saved round */
 .round-times {
