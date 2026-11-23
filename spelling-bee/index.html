@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Spelling Bee</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --honey: #ffc83d;
+    --honey-dark: #f0a500;
+    --ink: #2b2118;
+    --cream: #fff8e1;
+    --green: #2fbf71;
+    --red: #ef476f;
+    --blue: #3a86ff;
+    --purple: #8338ec;
+    --card: #ffffff;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: 'Fredoka', 'Trebuchet MS', Arial, sans-serif;
+    color: var(--ink);
+    background-color: var(--cream);
+    background-image:
+      radial-gradient(circle at 20% 10%, rgba(255,200,61,.35) 0 60px, transparent 61px),
+      radial-gradient(circle at 85% 30%, rgba(255,200,61,.25) 0 90px, transparent 91px),
+      radial-gradient(circle at 10% 80%, rgba(255,200,61,.25) 0 70px, transparent 71px);
+    min-height: 100vh;
+    -webkit-user-select: none; user-select: none;
+  }
+  header {
+    background: var(--honey);
+    border-bottom: 6px solid var(--ink);
+    padding: 12px 16px 0;
+    text-align: center;
+  }
+  h1 { margin: 0; font-size: 2.2rem; letter-spacing: 1px; }
+  h1 .bee { display: inline-block; animation: buzz 2.5s ease-in-out infinite; }
+  @keyframes buzz { 0%,100% { transform: translateY(0) rotate(-6deg); } 50% { transform: translateY(-6px) rotate(6deg); } }
+  .tabs { display: flex; gap: 8px; justify-content: center; margin-top: 10px; }
+  .tab {
+    font: inherit; font-size: 1.3rem; font-weight: 700;
+    border: 4px solid var(--ink); border-bottom: none;
+    border-radius: 18px 18px 0 0;
+    background: #ffe9a8; color: var(--ink);
+    padding: 10px 22px; cursor: pointer;
+  }
+  .tab.active { background: var(--cream); }
+  main { max-width: 900px; margin: 0 auto; padding: 18px 16px 40px; }
+  .hidden { display: none !important; }
+
+  button { font-family: inherit; cursor: pointer; }
+  .big-btn {
+    font-size: 1.4rem; font-weight: 700;
+    border: 4px solid var(--ink); border-radius: 20px;
+    padding: 14px 24px; margin: 6px;
+    background: var(--honey); color: var(--ink);
+    box-shadow: 0 6px 0 var(--ink);
+    transition: transform .08s, box-shadow .08s;
+    min-height: 64px;
+  }
+  .big-btn:active { transform: translateY(5px); box-shadow: 0 1px 0 var(--ink); }
+  .big-btn.blue { background: #8ecbff; }
+  .big-btn.green { background: #8ff0b8; }
+  .big-btn.pink { background: #ffb3c6; }
+  .big-btn.purple { background: #d2b4ff; }
+  .big-btn:disabled { opacity: .45; }
+  .row { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; }
+
+  /* Word list */
+  .hint { text-align: center; font-size: 1.25rem; margin: 4px 0 16px; }
+  .word-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }
+  .word-btn {
+    font-size: 1.35rem; font-weight: 600;
+    background: var(--card); color: var(--ink);
+    border: 3px solid var(--ink); border-radius: 16px;
+    padding: 16px 8px; min-height: 64px;
+    box-shadow: 0 4px 0 var(--honey-dark);
+  }
+  .word-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--honey-dark); }
+
+  /* Shared card */
+  .card {
+    background: var(--card); border: 5px solid var(--ink); border-radius: 28px;
+    padding: 22px 16px; text-align: center;
+    box-shadow: 0 8px 0 var(--honey-dark);
+  }
+  .big-word { font-size: 3.6rem; font-weight: 700; margin: 6px 0 14px; word-break: break-word; }
+  .tiles { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 12px 0; min-height: 70px; }
+  .tile {
+    width: 58px; height: 68px; border: 4px solid var(--ink); border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 2.2rem; font-weight: 700; background: #fff3c4;
+    transition: transform .15s, background .15s;
+  }
+  .tile.gap { border: none; background: transparent; width: 22px; }
+  .tile.lit { background: var(--honey); transform: scale(1.18) rotate(-4deg); }
+  .tile.good { background: #8ff0b8; }
+  .tile.bad { background: #ffb3c6; }
+  .tile.pop { animation: pop .25s ease-out; }
+  @keyframes pop { 0% { transform: scale(.4); } 80% { transform: scale(1.12); } 100% { transform: scale(1); } }
+  .label { font-size: 1.2rem; font-weight: 700; margin-top: 14px; }
+  .counter { font-size: 1.3rem; font-weight: 700; margin-bottom: 6px; }
+
+  /* Practice */
+  .status { font-size: 1.25rem; min-height: 1.6em; margin: 6px 0; }
+  .mic-btn.listening { background: #ff8fab; animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100% { box-shadow: 0 6px 0 var(--ink), 0 0 0 0 rgba(239,71,111,.6); } 50% { box-shadow: 0 6px 0 var(--ink), 0 0 0 16px rgba(239,71,111,0); } }
+  .keyboard { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin: 14px auto 4px; max-width: 620px; }
+  .key {
+    font-size: 1.6rem; font-weight: 700; min-height: 56px;
+    border: 3px solid var(--ink); border-radius: 12px; background: #fff;
+    color: var(--ink);
+  }
+  .key:active { background: var(--honey); }
+  .key.wide { grid-column: span 2; font-size: 1.2rem; }
+  .verdict { font-size: 2.4rem; font-weight: 700; margin: 4px 0; }
+  .verdict.good { color: var(--green); }
+  .verdict.bad { color: var(--red); }
+  .score-big { font-size: 3rem; font-weight: 700; margin: 8px 0; }
+  .results-list { list-style: none; padding: 0; margin: 14px auto; max-width: 460px; text-align: left; }
+  .results-list li { font-size: 1.5rem; padding: 8px 12px; border-bottom: 2px dashed #e5d39b; }
+  .results-list .theirs { font-size: 1.1rem; color: #7a6a55; }
+  .small-note { font-size: 1rem; color: #7a6a55; margin-top: 10px; }
+  .link-btn { background: none; border: none; text-decoration: underline; font-size: 1rem; color: #7a6a55; padding: 8px; }
+
+  @media (max-width: 520px) {
+    h1 { font-size: 1.7rem; }
+    .tab { font-size: 1.05rem; padding: 8px 14px; }
+    .big-word { font-size: 2.6rem; }
+    .tile { width: 42px; height: 52px; font-size: 1.6rem; border-width: 3px; }
+    .word-grid { grid-template-columns: repeat(2, 1fr); }
+    .big-btn { font-size: 1.15rem; padding: 12px 16px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1><span class="bee">🐝</span> Spelling Bee <span class="bee">🐝</span></h1>
+  <nav class="tabs">
+    <button class="tab active" id="tabList">📖 Word List</button>
+    <button class="tab" id="tabPractice">🎤 Practice</button>
+  </nav>
+</header>
+
+<main>
+  <!-- ============ WORD LIST ============ -->
+  <section id="listView">
+    <p class="hint">Tap a word to see it and hear how to spell it!</p>
+    <div class="word-grid" id="wordGrid"></div>
+  </section>
+
+  <section id="wordView" class="hidden">
+    <div class="card">
+      <div class="counter" id="wvCounter"></div>
+      <div class="big-word" id="wvWord"></div>
+      <div class="tiles" id="wvTiles"></div>
+      <div class="row">
+        <button class="big-btn" id="wvAgain">🔊 Hear it again</button>
+        <button class="big-btn purple" id="wvSentence">💬 Sentence</button>
+      </div>
+      <div class="row">
+        <button class="big-btn blue" id="wvPrev">⬅️ Back</button>
+        <button class="big-btn green" id="wvList">📖 All Words</button>
+        <button class="big-btn blue" id="wvNext">Next ➡️</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PRACTICE ============ -->
+  <section id="practiceStart" class="hidden">
+    <div class="card">
+      <div class="big-word">🐝 Practice Bee!</div>
+      <p class="hint">I'll say 5 words. You spell each one out loud, then tap <b>Done</b>.</p>
+      <button class="big-btn green" id="startRound">▶️ Start 5 Words</button>
+      <div class="small-note" id="poolNote"></div>
+      <button class="link-btn" id="resetPool">Start the word list over</button>
+    </div>
+  </section>
+
+  <section id="practiceWord" class="hidden">
+    <div class="card">
+      <div class="counter" id="pwCounter"></div>
+      <div class="row">
+        <button class="big-btn" id="pwHear">🔊 Hear the word</button>
+        <button class="big-btn purple" id="pwSentence">💬 Sentence</button>
+      </div>
+      <div class="label">Your spelling:</div>
+      <div class="tiles" id="pwTiles"></div>
+      <div class="status" id="pwStatus"></div>
+      <div class="row">
+        <button class="big-btn pink mic-btn" id="pwMic">🎤 Tap and spell out loud</button>
+      </div>
+      <div class="keyboard" id="keyboard"></div>
+      <div class="row">
+        <button class="big-btn green" id="pwDone">✅ Done</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="practiceCheck" class="hidden">
+    <div class="card">
+      <div class="counter" id="pcCounter"></div>
+      <div class="verdict" id="pcVerdict"></div>
+      <div class="label">You spelled:</div>
+      <div class="tiles" id="pcTheirs"></div>
+      <div class="label">Correct spelling:</div>
+      <div class="big-word" id="pcWord"></div>
+      <div class="tiles" id="pcCorrect"></div>
+      <div class="row">
+        <button class="big-btn" id="pcAgain">🔊 Hear it again</button>
+        <button class="big-btn green" id="pcNext">Next word ➡️</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="practiceDone" class="hidden">
+    <div class="card">
+      <div class="big-word" id="pdEmoji"></div>
+      <div class="score-big" id="pdScore"></div>
+      <ul class="results-list" id="pdList"></ul>
+      <div class="row">
+        <button class="big-btn green" id="pdMore">🐝 5 More Words</button>
+        <button class="big-btn blue" id="pdList2">📖 Word List</button>
+      </div>
+      <div class="small-note" id="pdPool"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  // ---------------- Word bank (2026 Spelling Bee, First and Second Grade) ----------------
+  var WORDS = [
+    ['sad', 'My dog looks sad when I leave for school.'],
+    ['happy', 'I am happy when I play with my friends.'],
+    ['scared', 'The loud thunder made me feel scared.'],
+    ['angry', 'My sister was angry when I took her toy.'],
+    ['blue', 'The sky is blue today.'],
+    ['yellow', 'A banana is yellow.'],
+    ['green', 'The grass is green.'],
+    ['Thursday', 'We have art class on Thursday.'],
+    ['purple', 'Grapes can be purple.'],
+    ['Wednesday', 'Wednesday comes after Tuesday.'],
+    ['Tuesday', 'Tuesday comes after Monday.'],
+    ['brown', 'The bear has brown fur.'],
+    ['white', 'Snow is white.'],
+    ['February', 'February is the shortest month of the year.'],
+    ['January', 'January is the first month of the year.'],
+    ['April', 'April comes after March.'],
+    ['December', 'December is the last month of the year.'],
+    ['school', 'I learn new things at school.'],
+    ['classroom', 'Our classroom has a big window.'],
+    ['bathroom', 'I wash my hands in the bathroom.'],
+    ['computer lab', 'We use the computers in the computer lab.'],
+    ['playground', 'We run and jump on the playground.'],
+    ['cafeteria', 'We eat lunch in the cafeteria.'],
+    ['study', 'I study my spelling words every day.'],
+    ['wash', 'Please wash your hands before you eat.'],
+    ['computer', 'I can type my name on the computer.'],
+    ['play', "Let's play tag at recess."],
+    ['eat', 'I like to eat apples.'],
+    ['backpack', 'I put my books in my backpack.'],
+    ['glue', 'Use glue to stick the paper together.'],
+    ['pencil', 'I write my name with a pencil.'],
+    ['scissors', 'Be careful when you cut with scissors.'],
+    ['sharpener', 'My pencil is dull, so I need the sharpener.'],
+    ['color pencil', 'I drew a red apple with a color pencil.'],
+    ['ruler', 'I used a ruler to draw a straight line.'],
+    ['eraser', 'I fixed my mistake with an eraser.'],
+    ['book', 'My favorite book is about dinosaurs.'],
+    ['notebook', 'I write my spelling words in my notebook.'],
+    ['art class', 'We painted pictures in art class.'],
+    ['instructions', 'Listen to the instructions before you start.'],
+    ['read', 'I like to read before bed.'],
+    ['write', 'Can you write your name?'],
+    ['draw', 'I like to draw pictures of animals.'],
+    ['cut', 'Cut the paper on the line.'],
+    ['color', 'Red is my favorite color.'],
+    ['clean up', 'It is time to clean up the toys.'],
+    ['follow', 'Please follow the teacher to the library.'],
+    ['drink', 'I drink milk at lunch.'],
+    ['water', 'Fish live in water.'],
+    ['teacher', 'My teacher helps me learn to read.']
+  ].map(function (p) { return { word: p[0], sentence: p[1] }; });
+
+  var ROUND_SIZE = 5;
+  var POOL_KEY = 'spellingBeeUsedWords';
+
+  function $(id) { return document.getElementById(id); }
+  function letters(w) { return w.toLowerCase().replace(/[^a-z]/g, ''); }
+  function shuffle(a) {
+    a = a.slice();
+    for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var t = a[i]; a[i] = a[j]; a[j] = t; }
+    return a;
+  }
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  // ---------------- Talking (speech synthesis) ----------------
+  var synth = window.speechSynthesis || null;
+  var voice = null;
+  var talkToken = 0; // bumps every time we stop talking, so old sequences quit
+
+  function pickVoice() {
+    if (!synth) return;
+    var vs = synth.getVoices() || [];
+    var en = vs.filter(function (v) { return /^en[-_]US/i.test(v.lang); });
+    if (!en.length) en = vs.filter(function (v) { return /^en/i.test(v.lang); });
+    var nice = en.filter(function (v) { return /samantha|google us|female|zira|aria|jenny/i.test(v.name); });
+    voice = nice[0] || en[0] || null;
+  }
+  if (synth) {
+    pickVoice();
+    if ('onvoiceschanged' in synth) synth.onvoiceschanged = pickVoice;
+  }
+
+  function stopTalking() {
+    talkToken++;
+    if (synth) { try { synth.cancel(); } catch (e) {} }
+  }
+
+  // Say one thing. Resolves when it finishes (with a safety timer, since some tablets never fire "end").
+  function say(text, rate) {
+    return new Promise(function (resolve) {
+      if (!synth) { setTimeout(resolve, 500 + text.length * 60); return; }
+      var done = false;
+      function finish() { if (!done) { done = true; clearInterval(poll); clearTimeout(cap); resolve(); } }
+      var u = new SpeechSynthesisUtterance(text);
+      if (voice) u.voice = voice;
+      u.lang = (voice && voice.lang) || 'en-US';
+      u.rate = rate || 0.9;
+      u.onend = finish;
+      u.onerror = finish;
+      var started = false;
+      u.onstart = function () { started = true; };
+      synth.speak(u);
+      var poll = setInterval(function () {
+        if (synth.speaking) started = true;
+        else if (started) finish();
+      }, 150);
+      var cap = setTimeout(finish, 2500 + text.length * 150);
+    });
+  }
+
+  // Letter names that tablets read clearly.
+  var LETTER_SAY = { a: 'A.', i: 'I.' };
+  function letterSpeech(ch) { return LETTER_SAY[ch.toLowerCase()] || ch.toUpperCase() + '.'; }
+
+  function makeTiles(container, word, opts) {
+    container.innerHTML = '';
+    var tiles = [];
+    for (var i = 0; i < word.length; i++) {
+      var ch = word[i];
+      var t = document.createElement('div');
+      if (ch === ' ') { t.className = 'tile gap'; }
+      else { t.className = 'tile'; t.textContent = ch.toUpperCase(); }
+      if (opts && opts.cls && opts.cls[i]) t.className += ' ' + opts.cls[i];
+      container.appendChild(t);
+      tiles.push(t);
+    }
+    return tiles;
+  }
+
+  // "Thursday. T H U R S D A Y. Thursday." with each tile lighting up as it's said.
+  async function spellOutLoud(word, tiles, intro) {
+    stopTalking();
+    var my = ++talkToken;
+    await sleep(120);
+    if (my !== talkToken) return;
+    await say(intro || word, 0.85);
+    for (var i = 0; i < word.length; i++) {
+      if (my !== talkToken) return;
+      var ch = word[i];
+      if (ch === ' ') { await sleep(450); continue; }
+      tiles[i].classList.add('lit');
+      await say(letterSpeech(ch), 0.9);
+      tiles[i].classList.remove('lit');
+      if (my !== talkToken) return;
+      await sleep(90);
+    }
+    if (my !== talkToken) return;
+    await sleep(200);
+    await say(word, 0.85);
+  }
+
+  async function sayOnly(text, rate) {
+    stopTalking();
+    var my = ++talkToken;
+    await sleep(120);
+    if (my !== talkToken) return;
+    await say(text, rate || 0.85);
+  }
+
+  // ---------------- Screens ----------------
+  var screens = ['listView', 'wordView', 'practiceStart', 'practiceWord', 'practiceCheck', 'practiceDone'];
+  function show(id) {
+    screens.forEach(function (s) { $(s).classList.toggle('hidden', s !== id); });
+    window.scrollTo(0, 0);
+  }
+  function setTab(which) {
+    $('tabList').classList.toggle('active', which === 'list');
+    $('tabPractice').classList.toggle('active', which === 'practice');
+  }
+
+  $('tabList').onclick = function () { stopTalking(); stopListening(); setTab('list'); show('listView'); };
+  $('tabPractice').onclick = function () { stopTalking(); stopListening(); setTab('practice'); openPracticeStart(); };
+
+  // ---------------- Word List ----------------
+  var grid = $('wordGrid');
+  WORDS.forEach(function (w, i) {
+    var b = document.createElement('button');
+    b.className = 'word-btn';
+    b.textContent = w.word;
+    b.onclick = function () { openWord(i); };
+    grid.appendChild(b);
+  });
+
+  var wvIndex = 0, wvTiles = [];
+  function openWord(i) {
+    wvIndex = (i + WORDS.length) % WORDS.length;
+    var w = WORDS[wvIndex];
+    $('wvCounter').textContent = 'Word ' + (wvIndex + 1) + ' of ' + WORDS.length;
+    $('wvWord').textContent = w.word;
+    wvTiles = makeTiles($('wvTiles'), w.word);
+    show('wordView');
+    spellOutLoud(w.word, wvTiles);
+  }
+  $('wvAgain').onclick = function () { spellOutLoud(WORDS[wvIndex].word, wvTiles); };
+  $('wvSentence').onclick = function () { var w = WORDS[wvIndex]; sayOnly(w.word + '. ' + w.sentence + ' ' + w.word + '.'); };
+  $('wvPrev').onclick = function () { openWord(wvIndex - 1); };
+  $('wvNext').onclick = function () { openWord(wvIndex + 1); };
+  $('wvList').onclick = function () { stopTalking(); show('listView'); };
+
+  // ---------------- Practice: which words he's already had ----------------
+  function loadUsed() {
+    try { var v = JSON.parse(localStorage.getItem(POOL_KEY) || '[]'); return Array.isArray(v) ? v : []; }
+    catch (e) { return []; }
+  }
+  function saveUsed(arr) { try { localStorage.setItem(POOL_KEY, JSON.stringify(arr)); } catch (e) {} }
+  var used = loadUsed();
+  function remaining() { return WORDS.filter(function (w) { return used.indexOf(w.word) === -1; }); }
+
+  function poolText() {
+    var left = remaining().length;
+    if (left === WORDS.length) return 'All ' + WORDS.length + ' words are ready to practice.';
+    if (left === 0) return 'You practiced all ' + WORDS.length + ' words! Next round starts the list over.';
+    return left + ' of ' + WORDS.length + ' words left that you have not practiced yet.';
+  }
+
+  function openPracticeStart() {
+    $('poolNote').textContent = poolText();
+    show('practiceStart');
+  }
+  $('resetPool').onclick = function () { used = []; saveUsed(used); $('poolNote').textContent = poolText(); };
+
+  // ---------------- Practice round ----------------
+  var round = [], roundPos = 0, results = [];
+  var typed = []; // letters he has spelled so far
+
+  function startRound() {
+    var left = remaining();
+    if (left.length === 0) { used = []; left = WORDS.slice(); }
+    var pick = shuffle(left).slice(0, ROUND_SIZE);
+    if (pick.length < ROUND_SIZE) {
+      // Not enough new words left: finish the list, then top up from the start of a fresh list.
+      var extra = shuffle(WORDS.filter(function (w) { return pick.indexOf(w) === -1; })).slice(0, ROUND_SIZE - pick.length);
+      used = [];
+      extra.forEach(function (w) { used.push(w.word); });
+      pick = pick.concat(extra);
+    } else {
+      pick.forEach(function (w) { used.push(w.word); });
+    }
+    saveUsed(used);
+    round = pick; roundPos = 0; results = [];
+    showPracticeWord();
+  }
+  $('startRound').onclick = startRound;
+  $('pdMore').onclick = function () { stopTalking(); startRound(); };
+  $('pdList2').onclick = function () { stopTalking(); setTab('list'); show('listView'); };
+
+  function current() { return round[roundPos]; }
+
+  function showPracticeWord() {
+    typed = [];
+    renderTyped(false);
+    $('pwCounter').textContent = 'Word ' + (roundPos + 1) + ' of ' + round.length;
+    $('pwStatus').textContent = canListen ? 'Tap the microphone, then say each letter.' : 'Tap the letters to spell the word.';
+    show('practiceWord');
+    var w = current();
+    sayOnly('Your word is: ' + w.word + '.');
+  }
+
+  $('pwHear').onclick = function () { stopListening(); sayOnly(current().word); };
+  $('pwSentence').onclick = function () { stopListening(); var w = current(); sayOnly(w.word + '. ' + w.sentence + ' ' + w.word + '.'); };
+
+  var shownCount = 0;
+  function renderTyped(animateNew) {
+    var box = $('pwTiles');
+    box.innerHTML = '';
+    for (var i = 0; i < typed.length; i++) {
+      var t = document.createElement('div');
+      t.className = 'tile';
+      if (animateNew && i >= shownCount) t.className += ' pop';
+      t.textContent = typed[i].toUpperCase();
+      box.appendChild(t);
+    }
+    if (!typed.length) {
+      var e = document.createElement('div');
+      e.className = 'tile gap';
+      box.appendChild(e);
+    }
+    shownCount = typed.length;
+  }
+
+  // On-screen letter keys (always there, in case the microphone mishears or isn't available)
+  (function buildKeyboard() {
+    var kb = $('keyboard');
+    'abcdefghijklmnopqrstuvwxyz'.split('').forEach(function (ch) {
+      var k = document.createElement('button');
+      k.className = 'key';
+      k.textContent = ch.toUpperCase();
+      k.onclick = function () { stopListening(); typed.push(ch); renderTyped(true); };
+      kb.appendChild(k);
+    });
+    var back = document.createElement('button');
+    back.className = 'key wide';
+    back.textContent = '⌫ Erase';
+    back.onclick = function () { stopListening(); typed.pop(); renderTyped(false); };
+    kb.appendChild(back);
+    var clr = document.createElement('button');
+    clr.className = 'key wide';
+    clr.textContent = '🧽 Clear';
+    clr.onclick = function () { stopListening(); typed = []; renderTyped(false); };
+    kb.appendChild(clr);
+  })();
+
+  // ---------------- Listening (speech recognition) ----------------
+  var Recog = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+  var canListen = !!Recog;
+  var rec = null, listening = false, baseLetters = [];
+
+  if (!canListen) {
+    $('pwMic').classList.add('hidden');
+  }
+
+  // How kids' spoken letters tend to come back from the recognizer
+  var NAMES = {
+    a: ['a', 'ay', 'eh', 'hey', 'aye'],
+    b: ['b', 'be', 'bee', 'bea'],
+    c: ['c', 'see', 'sea', 'si', 'cee'],
+    d: ['d', 'dee', 'de'],
+    e: ['e', 'ee', 'ea'],
+    f: ['f', 'ef', 'eff'],
+    g: ['g', 'gee', 'ji', 'jee', 'gi'],
+    h: ['h', 'aitch', 'haitch', 'age', 'ache', 'each', 'itch'],
+    i: ['i', 'eye', 'ai'],
+    j: ['j', 'jay', 'jae', 'jey'],
+    k: ['k', 'kay', 'okay', 'ok', 'cay', 'kei'],
+    l: ['l', 'el', 'ell', 'elle', 'al'],
+    m: ['m', 'em', 'im'],
+    n: ['n', 'en', 'and', 'in', 'an'],
+    o: ['o', 'oh', 'owe'],
+    p: ['p', 'pee', 'pea', 'pe'],
+    q: ['q', 'queue', 'cue', 'cute', 'kew'],
+    r: ['r', 'are', 'our', 'ar'],
+    s: ['s', 'es', 'ess', 'yes'],
+    t: ['t', 'tea', 'tee', 'ti', 'te'],
+    u: ['u', 'you', 'yu', 'ewe'],
+    v: ['v', 'vee', 've', 'vi'],
+    w: ['w', 'doubleyou', 'doubleu'],
+    x: ['x', 'ex', 'ecks', 'eggs', 'axe'],
+    y: ['y', 'why', 'wie', 'wy'],
+    z: ['z', 'zee', 'zed', 'zi']
+  };
+  var NAME_TO_LETTER = {};
+  Object.keys(NAMES).forEach(function (L) { NAMES[L].forEach(function (n) { if (!(n in NAME_TO_LETTER)) NAME_TO_LETTER[n] = L; }); });
+
+  function parseLetters(raw) {
+    var out = [];
+    var parts = raw.replace(/[.,!?\-_/]+/g, ' ').trim().split(/\s+/);
+    for (var i = 0; i < parts.length; i++) {
+      var orig = parts[i];
+      if (!orig) continue;
+      var t = orig.toLowerCase().replace(/[^a-z']/g, '');
+      if (!t) continue;
+      if (t === 'double' && parts[i + 1] && /^(you|u)$/i.test(parts[i + 1])) { out.push('w'); i++; continue; }
+      if (t === 'capital' || t === 'letter' || t === 'space') continue;
+      if (NAME_TO_LETTER[t]) { out.push(NAME_TO_LETTER[t]); continue; }
+      // The recognizer sometimes glues spelled letters together, like "CAT" or "ABC".
+      var lettersOnly = orig.replace(/[^A-Za-z]/g, '');
+      if (lettersOnly.length > 1 && lettersOnly === lettersOnly.toUpperCase()) {
+        lettersOnly.toLowerCase().split('').forEach(function (c) { out.push(c); });
+      }
+      // Anything else (a whole word) is ignored, so saying the word doesn't count as spelling it.
+    }
+    return out;
+  }
+
+  function startListening() {
+    if (!canListen || listening) return;
+    stopTalking();
+    try {
+      rec = new Recog();
+      rec.lang = 'en-US';
+      rec.continuous = true;
+      rec.interimResults = true;
+      rec.maxAlternatives = 1;
+    } catch (e) { canListen = false; $('pwMic').classList.add('hidden'); return; }
+    baseLetters = typed.slice();
+    listening = true;
+    $('pwMic').classList.add('listening');
+    $('pwMic').textContent = '👂 Listening… tap to stop';
+    $('pwStatus').textContent = 'Say each letter, like "C… A… T".';
+
+    rec.onresult = function (ev) {
+      var all = '';
+      for (var i = 0; i < ev.results.length; i++) all += ' ' + ev.results[i][0].transcript;
+      typed = baseLetters.concat(parseLetters(all));
+      renderTyped(true);
+    };
+    rec.onerror = function (ev) {
+      if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') {
+        $('pwStatus').textContent = 'The microphone is turned off. Tap the letters instead.';
+      } else if (ev.error === 'no-speech') {
+        $('pwStatus').textContent = "I didn't hear anything. Tap the microphone and try again.";
+      } else {
+        $('pwStatus').textContent = 'Oops, the microphone had a hiccup. Try again or tap the letters.';
+      }
+    };
+    rec.onend = function () {
+      listening = false;
+      rec = null;
+      $('pwMic').classList.remove('listening');
+      $('pwMic').textContent = '🎤 Tap and spell out loud';
+      if (/Listening|Say each/.test($('pwStatus').textContent)) {
+        $('pwStatus').textContent = 'Tap the microphone to keep going, or tap Done.';
+      }
+    };
+    try { rec.start(); } catch (e) { listening = false; }
+  }
+
+  function stopListening() {
+    if (rec) { try { rec.stop(); } catch (e) {} }
+  }
+
+  $('pwMic').onclick = function () { if (listening) stopListening(); else startListening(); };
+
+  // ---------------- Done: compare spellings ----------------
+  $('pwDone').onclick = async function () {
+    if (listening) { stopListening(); await sleep(500); }
+    var w = current();
+    var correct = letters(w.word);
+    var theirs = typed.join('');
+    var ok = theirs === correct;
+    results.push({ word: w.word, theirs: theirs, ok: ok });
+
+    $('pcCounter').textContent = 'Word ' + (roundPos + 1) + ' of ' + round.length;
+    var v = $('pcVerdict');
+    v.textContent = ok ? '🎉 You got it!' : '💛 Nice try!';
+    v.className = 'verdict ' + (ok ? 'good' : 'bad');
+
+    var theirCls = [];
+    for (var i = 0; i < theirs.length; i++) theirCls.push(theirs[i] === correct[i] ? 'good' : 'bad');
+    if (theirs.length) makeTiles($('pcTheirs'), theirs, { cls: theirCls });
+    else { $('pcTheirs').innerHTML = ''; var e = document.createElement('div'); e.className = 'status'; e.textContent = '(nothing yet)'; $('pcTheirs').appendChild(e); }
+
+    $('pcWord').textContent = w.word;
+    var tiles = makeTiles($('pcCorrect'), w.word);
+    $('pcNext').textContent = roundPos + 1 < round.length ? 'Next word ➡️' : '🏁 See my score';
+    show('practiceCheck');
+    pcTiles = tiles;
+    spellOutLoud(w.word, tiles, (ok ? 'Great job! ' : '') + w.word + ' is spelled');
+  };
+
+  var pcTiles = [];
+  $('pcAgain').onclick = function () { var w = current(); spellOutLoud(w.word, pcTiles, w.word + ' is spelled'); };
+  $('pcNext').onclick = function () {
+    stopTalking();
+    roundPos++;
+    if (roundPos < round.length) showPracticeWord();
+    else showRoundDone();
+  };
+
+  function showRoundDone() {
+    var score = results.filter(function (r) { return r.ok; }).length;
+    $('pdEmoji').textContent = score === round.length ? '🏆🐝🏆' : score >= 3 ? '🌟🐝🌟' : '🐝💪';
+    $('pdScore').textContent = 'You got ' + score + ' out of ' + round.length + '!';
+    var list = $('pdList');
+    list.innerHTML = '';
+    results.forEach(function (r) {
+      var li = document.createElement('li');
+      li.textContent = (r.ok ? '✅ ' : '❌ ') + r.word;
+      if (!r.ok) {
+        var s = document.createElement('div');
+        s.className = 'theirs';
+        s.textContent = 'You spelled: ' + (r.theirs ? r.theirs.toUpperCase() : '(nothing)');
+        li.appendChild(s);
+      }
+      list.appendChild(li);
+    });
+    $('pdPool').textContent = poolText();
+    show('practiceDone');
+    var msg = score === round.length ? 'Wow! You got all ' + round.length + ' right!' : 'You got ' + score + ' out of ' + round.length + '. Great practicing!';
+    sayOnly(msg);
+  }
+})();
+</script>
+</body>
+</html>
