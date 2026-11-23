@@ -109,14 +109,17 @@
   .status { font-size: 1.25rem; min-height: 1.6em; margin: 6px 0; }
   .mic-btn.listening { background: #ff8fab; animation: pulse 1s infinite; }
   @keyframes pulse { 0%,100% { box-shadow: 0 6px 0 var(--ink), 0 0 0 0 rgba(239,71,111,.6); } 50% { box-shadow: 0 6px 0 var(--ink), 0 0 0 16px rgba(239,71,111,0); } }
-  .keyboard { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin: 14px auto 4px; max-width: 620px; }
+  .keyboard { margin: 14px auto 4px; max-width: 720px; }
+  .kb-row { display: flex; justify-content: center; gap: 6px; margin-bottom: 6px; }
+  .kb-row .key { flex: 0 0 calc((100% - 54px) / 10); padding: 0; }
   .key {
     font-size: 1.6rem; font-weight: 700; min-height: 56px;
     border: 3px solid var(--ink); border-radius: 12px; background: #fff;
     color: var(--ink);
   }
   .key:active { background: var(--honey); }
-  .key.wide { grid-column: span 2; font-size: 1.2rem; }
+  .kb-row .key.wide { flex: 0 0 calc((100% - 54px) / 10 * 2 + 6px); font-size: 1.15rem; }
+  .kb-row .key.clear { flex: 0 0 auto; padding: 0 22px; font-size: 1.1rem; min-height: 46px; }
   .verdict { font-size: 2.4rem; font-weight: 700; margin: 4px 0; }
   .verdict.good { color: var(--green); }
   .verdict.bad { color: var(--red); }
@@ -522,23 +525,22 @@
   // On-screen letter keys (always there, in case the microphone mishears or isn't available)
   (function buildKeyboard() {
     var kb = $('keyboard');
-    'abcdefghijklmnopqrstuvwxyz'.split('').forEach(function (ch) {
+    function row() { var r = document.createElement('div'); r.className = 'kb-row'; kb.appendChild(r); return r; }
+    function key(r, label, cls, fn) {
       var k = document.createElement('button');
-      k.className = 'key';
-      k.textContent = ch.toUpperCase();
-      k.onclick = function () { stopListening(); typed.push(ch); renderTyped(true); };
-      kb.appendChild(k);
-    });
-    var back = document.createElement('button');
-    back.className = 'key wide';
-    back.textContent = '⌫ Erase';
-    back.onclick = function () { stopListening(); typed.pop(); renderTyped(false); };
-    kb.appendChild(back);
-    var clr = document.createElement('button');
-    clr.className = 'key wide';
-    clr.textContent = '🧽 Clear';
-    clr.onclick = function () { stopListening(); typed = []; renderTyped(false); };
-    kb.appendChild(clr);
+      k.className = 'key' + (cls ? ' ' + cls : '');
+      k.textContent = label;
+      k.onclick = fn;
+      r.appendChild(k);
+    }
+    function letterKey(r, ch) { key(r, ch.toUpperCase(), '', function () { stopListening(); typed.push(ch); renderTyped(true); }); }
+    // Same layout as a regular keyboard
+    var r1 = row(); 'qwertyuiop'.split('').forEach(function (ch) { letterKey(r1, ch); });
+    var r2 = row(); 'asdfghjkl'.split('').forEach(function (ch) { letterKey(r2, ch); });
+    var r3 = row(); 'zxcvbnm'.split('').forEach(function (ch) { letterKey(r3, ch); });
+    key(r3, '⌫ Erase', 'wide', function () { stopListening(); typed.pop(); renderTyped(false); });
+    var r4 = row();
+    key(r4, '🧽 Clear all', 'clear', function () { stopListening(); typed = []; renderTyped(false); });
   })();
 
   // ---------------- Listening (speech recognition) ----------------
