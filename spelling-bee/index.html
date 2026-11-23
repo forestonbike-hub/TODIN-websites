@@ -191,6 +191,7 @@
       <div class="label">Your spelling:</div>
       <div class="tiles" id="pwTiles"></div>
       <div class="status" id="pwStatus"></div>
+      <div class="small-note" id="micCode"></div>
       <div class="row">
         <button class="big-btn pink mic-btn" id="pwMic">🎤 Tap and spell out loud</button>
       </div>
@@ -488,6 +489,7 @@
   function showPracticeWord() {
     typed = [];
     renderTyped(false);
+    $('micCode').textContent = '';
     $('pwCounter').textContent = 'Word ' + (roundPos + 1) + ' of ' + round.length;
     $('pwStatus').textContent = canListen ? 'Tap the microphone, then say each letter.' : 'Tap the letters to spell the word.';
     show('practiceWord');
@@ -601,6 +603,18 @@
     return out;
   }
 
+  // Shows a kid-friendly message plus the exact technical reason in small print (for Dad).
+  function micError(code, detail) {
+    var msg;
+    if (code === 'not-allowed' || code === 'service-not-allowed') msg = "The microphone isn't allowed on this device. Tap the letters instead.";
+    else if (code === 'no-speech') msg = "I didn't hear anything. Tap the microphone and try again.";
+    else if (code === 'network') msg = "The listening service couldn't connect. Tap the letters instead.";
+    else if (code === 'audio-capture') msg = "I can't find a microphone. Tap the letters instead.";
+    else msg = 'Oops, the microphone had a hiccup. Try again or tap the letters.';
+    $('pwStatus').textContent = msg;
+    $('micCode').textContent = 'Mic error: ' + code + (detail ? ' (' + detail + ')' : '');
+  }
+
   function startListening() {
     if (!canListen || listening) return;
     stopTalking();
@@ -611,6 +625,7 @@
       rec.interimResults = true;
       rec.maxAlternatives = 1;
     } catch (e) { canListen = false; $('pwMic').classList.add('hidden'); return; }
+    $('micCode').textContent = '';
     baseLetters = typed.slice();
     listening = true;
     $('pwMic').classList.add('listening');
@@ -624,13 +639,7 @@
       renderTyped(true);
     };
     rec.onerror = function (ev) {
-      if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') {
-        $('pwStatus').textContent = 'The microphone is turned off. Tap the letters instead.';
-      } else if (ev.error === 'no-speech') {
-        $('pwStatus').textContent = "I didn't hear anything. Tap the microphone and try again.";
-      } else {
-        $('pwStatus').textContent = 'Oops, the microphone had a hiccup. Try again or tap the letters.';
-      }
+      micError(ev.error, ev.message);
     };
     rec.onend = function () {
       listening = false;
@@ -641,7 +650,7 @@
         $('pwStatus').textContent = 'Tap the microphone to keep going, or tap Done.';
       }
     };
-    try { rec.start(); } catch (e) { listening = false; }
+    try { rec.start(); } catch (e) { micError('start-failed', e && e.message); }
   }
 
   function stopListening() {
